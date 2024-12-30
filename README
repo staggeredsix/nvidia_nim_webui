@@ -1,0 +1,141 @@
+# NIM Benchmark System
+
+**⚠️ WARNING: This software is currently under development and is released for testing and debugging purposes only. Use at your own risk.**
+
+## Overview
+NIM Benchmark System is a tool designed to benchmark NVIDIA Inference Microservices (NIMs). It provides a web interface for managing NIMs, running benchmarks, and analyzing performance metrics.
+
+## Prerequisites
+- Python 3.10 or higher
+- Node.js 16.x or higher
+- Docker with NVIDIA Container Toolkit
+- NVIDIA GPU with appropriate drivers
+- NGC API Key
+
+## Dependencies
+
+### Backend Dependencies
+```bash
+# Core dependencies
+aiohttp>=3.8.0
+fastapi>=0.68.0
+uvicorn>=0.15.0
+pydantic>=1.8.0
+python-dotenv>=0.19.0
+sqlalchemy>=1.4.0
+websockets>=10.0.0
+prometheus-client>=0.12.0
+docker>=6.1.0
+cryptography>=41.0.0
+
+# Testing
+pytest>=6.0.0
+pytest-asyncio>=0.16.0
+pytest-cov>=2.0.0
+
+# Development
+black>=22.3.0
+isort>=5.9.3
+mypy>=0.910
+
+# Database
+aiosqlite>=0.17.0
+alembic>=1.7.0
+```
+
+### Frontend Dependencies
+```json
+{
+  "dependencies": {
+    "axios": "^1.7.9",
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.28.1",
+    "recharts": "^2.1.10"
+  }
+}
+```
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd nim-benchmark
+```
+
+2. Set up the backend:
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+3. Set up the frontend:
+```bash
+cd frontend
+npm install
+```
+
+## Configuration
+
+1. Set up your NGC API key:
+   - Obtain an NGC API key from the NVIDIA NGC website
+   - Use the settings page in the UI to add your key
+
+2. Environment variables (create `.env` in backend directory):
+```env
+DATABASE_URL=sqlite:///benchmarks.db
+PORT=8000
+```
+
+## Usage
+
+1. Start the backend server:
+```bash
+cd backend
+./start_server.sh
+```
+
+2. Start the frontend development server:
+```bash
+cd frontend
+npm run dev
+```
+
+3. Access the application at `http://localhost:3000`
+
+## Features
+- NIM container management
+- NGC key management
+- Real-time benchmark metrics
+- Performance visualization
+- Historical benchmark data
+- GPU metrics tracking
+
+## Known Issues
+- Real-time metrics occasionally disconnect
+- Memory usage reporting needs optimization
+- Some UI elements need polish
+
+## Development Status
+This project is in active development. Current focuses:
+- Improving error handling
+- Adding more comprehensive metrics
+- Enhancing UI/UX
+- Adding multi-GPU support
+- Implementing batch testing features
+
+## Contributing
+This project is currently in testing phase. Issue reports and debug information are welcome.
+
+## License
+This project is proprietary software. All rights reserved.
+
+## Support
+For bug reports and feature requests, please use the issue tracker.
+
+## Disclaimer
+This software is provided "as is", without warranty of any kind. In no event shall the authors be liable for any claim, damages or other liability arising from the use of the software.
