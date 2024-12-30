@@ -127,12 +127,13 @@ This project is in active development. Current focuses:
 - Enhancing UI/UX
 - Adding multi-GPU support
 - Implementing batch testing features
+- Multi node benchmarking and management
 
 ## Contributing
 This project is currently in testing phase. Issue reports and debug information are welcome.
 
 ## License
-This project is proprietary software. All rights reserved.
+This project is open to be changed, beat on, made fun of etc. Please fix bugs where you can.
 
 ## Support
 For bug reports and feature requests, please use the issue tracker.
