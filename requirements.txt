@@ -22,3 +22,7 @@ mypy>=0.910
 # Database
 aiosqlite>=0.17.0
 alembic>=1.7.0
+
+# Metrics Collection
+gputil>=1.4.0
+psutil>=5.8.0

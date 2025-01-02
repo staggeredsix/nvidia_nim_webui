@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from ...services.container import ContainerManager
 from ...utils.logger import logger
 from helpers.ngc_key_helper import key_exists
+from typing import Any
 
 router = APIRouter()
 container_manager = ContainerManager()
@@ -22,14 +23,6 @@ async def pull_nim(request: NimPullRequest):
         logger.error(f"Failed to pull NIM: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("")
-async def list_nims():
-    try:
-        return container_manager.list_containers()
-    except Exception as e:
-        logger.error(f"Failed to list NIMs: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/stop")  # Changed from "/nims/stop" to just "/stop"
 async def stop_nim():
     try:
@@ -38,3 +31,17 @@ async def stop_nim():
     except Exception as e:
         logger.error(f"Failed to stop NIM: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi.responses import JSONResponse
+
+@router.get("/")
+async def list_nims():
+    print("List NIMs endpoint hit")
+    try:
+        containers = container_manager.list_containers()
+        print(f"Containers: {containers}")
+        return JSONResponse(content=containers)
+    except Exception as e:
+        print(f"Error listing containers: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list NIM containers")
+

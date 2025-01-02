@@ -74,7 +74,25 @@ class ContainerManager:
             raise RuntimeError(f"Container stop error: {str(e)}")
 
     def list_containers(self):
-        return [self._active_nim] if self._active_nim else []
+        """
+        Retrieve all containers, including running and non-running ones,
+        filtered by those relevant to NIM.
+        """
+        try:
+            containers = self.docker_client.containers.list(all=True)  # Query all containers
+            logger.info(f"Raw container list: {containers}")
+            return [
+                {
+                    "id": container.id,
+                    "name": container.name,
+                    "status": container.status,
+                }
+                for container in containers
+                if "nim" in container.name.lower()  # Filter containers with 'nim' in their name
+            ]
+        except Exception as e:
+            logger.error(f"Failed to list containers: {e}")
+            raise RuntimeError("Unable to list containers.")
 
     def _find_available_port(self) -> int:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -82,3 +100,4 @@ class ContainerManager:
         port = s.getsockname()[1]
         s.close()
         return port
+

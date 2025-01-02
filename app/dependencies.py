@@ -1,7 +1,7 @@
 # app/dependencies.py
 from typing import Generator
-from fastapi import Depends
-from sqlalchemy.orm import Session
+from fastapi import Depends Sessions
+from sqlalchemy.orm import
 from .models.database import SessionLocal
 
 def get_db() -> Generator:

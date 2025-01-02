@@ -31,7 +31,9 @@ const Home = () => {
   const [error, setError] = useState('')
 
   // WebSocket connection
-  const { metrics: wsMetrics, isConnected, error: wsError } = useWebSocket('ws://localhost:8000/ws')
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  const wsUrl = `${protocol}://${window.location.host}/ws`
+  const { metrics: wsMetrics, isConnected, error: wsError } = useWebSocket(wsUrl)
 
   // Update metrics when WebSocket data is received
   useEffect(() => {
@@ -340,3 +342,4 @@ const Home = () => {
 }
 
 export default Home
+

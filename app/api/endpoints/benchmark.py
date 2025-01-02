@@ -14,27 +14,38 @@ container_manager = ContainerManager()
 
 @router.post("/benchmark")
 async def create_benchmark(config: Dict[str, Any], db: Session = Depends(get_db)):
-    try:
-        nim_id = config.pop('nim_id', None)
-        if not nim_id:
-            raise HTTPException(status_code=400, detail="NIM ID is required")
-            
-        nim = next((n for n in container_manager.list_containers() if n['container_id'] == nim_id), None)
-        if not nim:
-            raise HTTPException(status_code=404, detail="Selected NIM not found")
+   try:
+       nim_id = config.pop('nim_id', None)
+       if not nim_id:
+           raise HTTPException(status_code=400, detail="NIM ID is required")
+           
+       nim = next((n for n in container_manager.list_containers() if n['container_id'] == nim_id), None)
+       if not nim:
+           raise HTTPException(status_code=404, detail="Selected NIM not found")
 
-        run = BenchmarkRun(
-            model_name=config.get('prompt', ''),
-            config=json.dumps(config),
-            status="starting"
-        )
-        db.add(run)
-        db.commit()
-        db.refresh(run)
-        return {"run_id": run.id}
-    except Exception as e:
-        logger.error(f"Failed to start benchmark: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+       benchmark_config = BenchmarkConfig(
+           total_requests=config.get('totalRequests', 100),
+           concurrency_level=config.get('concurrencyLevel', 10),
+           max_tokens=config.get('maxTokens', 100),
+           prompt=config.get('prompt', '')
+       )
+
+       run = BenchmarkRun(
+           model_name=config.get('prompt', ''),
+           config=json.dumps(config),
+           status="running"
+       )
+       db.add(run)
+       db.commit()
+       db.refresh(run)
+
+       executor = BenchmarkExecutor(nim['url'], nim['image_name'], benchmark_config)
+       asyncio.create_task(executor.run_benchmark())
+       
+       return {"run_id": run.id}
+   except Exception as e:
+       logger.error(f"Failed to start benchmark: {e}")
+       raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/benchmark/history")
 def get_benchmark_history(db: Session = Depends(get_db)):

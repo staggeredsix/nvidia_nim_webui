@@ -81,3 +81,10 @@ export const useWebSocket = useWebSocketHolder;
 export type BenchmarkConfig = BenchmarkConfigHolder
 export type ContainerInfo = ContainerInfoHolder
 
+const ws = new WebSocket("ws://localhost:8000/ws"); // Ensure this URL is correct
+
+ws.onopen = () => console.log("WebSocket connected");
+ws.onmessage = (event) => console.log("Received:", event.data);
+ws.onerror = (error) => console.error("WebSocket error:", error);
+ws.onclose = () => console.log("WebSocket disconnected");
+
