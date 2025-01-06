@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Download } from "lucide-react";
+import { fetchBenchmarkHistory } from "../services/api";
 
-type Run = {
+// Define Run type matching API response
+interface Run {
   id: number;
   model_name: string;
   status: string;
@@ -11,11 +13,12 @@ type Run = {
     average_tps?: number;
     p95_latency?: number;
   };
-};
+}
 
-type StatusBadgeProps = {
+// Status Badge Component
+interface StatusBadgeProps {
   status: string;
-};
+}
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const colors: Record<string, string> = {
@@ -32,6 +35,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   );
 };
 
+// Main Component
 const BenchmarkHistory: React.FC = () => {
   const [history, setHistory] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,12 +46,11 @@ const BenchmarkHistory: React.FC = () => {
 
   const fetchHistory = async () => {
     try {
-      const response = await fetch("/api/benchmark/history");
-      const data: Run[] = await response.json();
+      const data = await fetchBenchmarkHistory();
       setHistory(data);
-      setLoading(false);
     } catch (error) {
       console.error("Error fetching history:", error);
+    } finally {
       setLoading(false);
     }
   };
@@ -131,4 +134,3 @@ const BenchmarkHistory: React.FC = () => {
 };
 
 export default BenchmarkHistory;
-

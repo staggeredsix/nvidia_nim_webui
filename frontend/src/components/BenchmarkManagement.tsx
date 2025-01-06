@@ -1,70 +1,90 @@
-import { useState } from "react";
-import { startBenchmark } from "@/services/api"; // Corrected import
+import React, { useState } from "react";
+import { startBenchmark, BenchmarkConfig } from "../services/api";
 
-const BenchmarkManagement = () => {
-  const [config, setConfig] = useState({
-    total_requests: 100,
-    concurrency_level: 10,
-    max_tokens: 50,
-    timeout: 30,
-    prompt: "Explain quantum computing briefly",
-  });
+const BenchmarkManagement: React.FC = () => {
+  const [totalRequests, setTotalRequests] = useState(100);
+  const [concurrencyLevel, setConcurrencyLevel] = useState(10);
+  const [maxTokens, setMaxTokens] = useState(50);
+  const [prompt, setPrompt] = useState("Translate the following text:");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleStartBenchmark = async () => {
+    setIsSubmitting(true);
+    const config: BenchmarkConfig = {
+      total_requests: totalRequests,
+      concurrency_level: concurrencyLevel,
+      max_tokens: maxTokens,
+      prompt,
+    };
+
     try {
       const response = await startBenchmark(config);
-      console.log("Benchmark started:", response.run_id);
+      alert(`Benchmark started with Run ID: ${response.run_id}`);
     } catch (error) {
       console.error("Error starting benchmark:", error);
+      alert("Failed to start benchmark. Please check your configuration.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div>
-      <h2>Benchmark Management</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="number"
-          value={config.total_requests}
-          onChange={(e) =>
-            setConfig({ ...config, total_requests: +e.target.value })
-          }
-          placeholder="Total Requests"
-        />
-        <input
-          type="number"
-          value={config.concurrency_level}
-          onChange={(e) =>
-            setConfig({ ...config, concurrency_level: +e.target.value })
-          }
-          placeholder="Concurrency Level"
-        />
-        <input
-          type="number"
-          value={config.max_tokens}
-          onChange={(e) =>
-            setConfig({ ...config, max_tokens: +e.target.value })
-          }
-          placeholder="Max Tokens"
-        />
-        <input
-          type="number"
-          value={config.timeout}
-          onChange={(e) => setConfig({ ...config, timeout: +e.target.value })}
-          placeholder="Timeout"
-        />
-        <input
-          type="text"
-          value={config.prompt}
-          onChange={(e) => setConfig({ ...config, prompt: e.target.value })}
-          placeholder="Prompt"
-        />
-        <button type="submit">Start Benchmark</button>
-      </form>
+    <div className="bg-gray-800 p-6 rounded-lg space-y-4">
+      <h2 className="text-xl font-bold">Benchmark Management</h2>
+
+      <div className="flex flex-col space-y-2">
+        <label className="flex flex-col">
+          <span>Total Requests:</span>
+          <input
+            type="number"
+            value={totalRequests}
+            onChange={(e) => setTotalRequests(Number(e.target.value))}
+            className="p-2 bg-gray-700 rounded"
+            min={1}
+          />
+        </label>
+
+        <label className="flex flex-col">
+          <span>Concurrency Level:</span>
+          <input
+            type="number"
+            value={concurrencyLevel}
+            onChange={(e) => setConcurrencyLevel(Number(e.target.value))}
+            className="p-2 bg-gray-700 rounded"
+            min={1}
+          />
+        </label>
+
+        <label className="flex flex-col">
+          <span>Max Tokens:</span>
+          <input
+            type="number"
+            value={maxTokens}
+            onChange={(e) => setMaxTokens(Number(e.target.value))}
+            className="p-2 bg-gray-700 rounded"
+            min={1}
+          />
+        </label>
+
+        <label className="flex flex-col">
+          <span>Prompt:</span>
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            className="p-2 bg-gray-700 rounded"
+          />
+        </label>
+      </div>
+
+      <button
+        onClick={handleStartBenchmark}
+        disabled={isSubmitting}
+        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+      >
+        {isSubmitting ? "Starting..." : "Start Benchmark"}
+      </button>
     </div>
   );
 };
 
 export default BenchmarkManagement;
-

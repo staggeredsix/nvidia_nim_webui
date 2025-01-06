@@ -17,6 +17,19 @@ export interface ContainerInfoHolder {
   url: string;
 }
 
+export interface BenchmarkRunHolder {
+  id: number; // Added the id field
+  model_name: string;
+  status: string;
+  start_time: string;
+  end_time?: string;
+  metrics: {
+    average_tps: number;
+    peak_tps: number;
+    p95_latency: number;
+  };
+}
+
 // Function Implementations with Holders
 const getNimsHolder = async (): Promise<ContainerInfo[]> => {
   const response = await axios.get(`${BASE_URL}/api/nims`);
@@ -37,6 +50,16 @@ const startBenchmarkHolder = async (
 ): Promise<{ run_id: number }> => {
   const response = await axios.post(`${BASE_URL}/api/benchmark/standard`, config);
   return response.data;
+};
+
+const fetchBenchmarkHistoryHolder = async (): Promise<BenchmarkRunHolder[]> => {
+  const response = await axios.get(`${BASE_URL}/api/benchmark/history`);
+  return response.data;
+};
+
+const addBenchmarkRunHolder = async (run: BenchmarkRunHolder): Promise<string> => {
+  const response = await axios.post(`${BASE_URL}/api/benchmark/add`, run);
+  return response.data.message;
 };
 
 const saveNgcKeyHolder = async (key: string): Promise<void> => {
@@ -72,14 +95,17 @@ export const getNims = getNimsHolder;
 export const pullNim = pullNimHolder;
 export const stopNim = stopNimHolder;
 export const startBenchmark = startBenchmarkHolder;
+export const fetchBenchmarkHistory = fetchBenchmarkHistoryHolder;
+export const addBenchmarkRun = addBenchmarkRunHolder;
 export const saveNgcKey = saveNgcKeyHolder;
 export const getNgcKey = getNgcKeyHolder;
 export const deleteNgcKey = deleteNgcKeyHolder;
 export const useWebSocket = useWebSocketHolder;
 
 // Type Exports
-export type BenchmarkConfig = BenchmarkConfigHolder
-export type ContainerInfo = ContainerInfoHolder
+export type BenchmarkConfig = BenchmarkConfigHolder;
+export type ContainerInfo = ContainerInfoHolder;
+export type BenchmarkRun = BenchmarkRunHolder;
 
 const ws = new WebSocket("ws://localhost:8000/ws"); // Ensure this URL is correct
 
@@ -87,4 +113,3 @@ ws.onopen = () => console.log("WebSocket connected");
 ws.onmessage = (event) => console.log("Received:", event.data);
 ws.onerror = (error) => console.error("WebSocket error:", error);
 ws.onclose = () => console.log("WebSocket disconnected");
-

@@ -1,103 +1,120 @@
-# File: app/services/container.py
-import docker
-import socket
 import os
+import asyncio
 import json
-from typing import Dict, Optional
+import docker
+from typing import Dict, List, Optional, Any
 from ..config import settings
 from ..utils.logger import logger
-
+e = []
 class ContainerManager:
-    def __init__(self):
-        self._active_nim = None
-        self.docker_client = docker.from_env()
-    
-    def save_nim(self, nim_info: Dict):
-        with open(settings.NIM_FILE, "w") as f:
-            f.write(json.dumps(nim_info))
-    
-    def load_nim(self) -> Optional[Dict]:
-        if not os.path.exists(settings.NIM_FILE):
-            return None
-        with open(settings.NIM_FILE, "r") as f:
-            return json.loads(f.read())
+   def __init__(self):
+       self.client = docker.from_env()
+       self._active_nim = self.load_nim()
 
-    async def start_container(self, image_name: str) -> Dict:
-        if self._active_nim:
-            raise RuntimeError("A NIM is already running. Stop it before starting another.")
+   def list_containers(self) -> List[Dict[str, Any]]:
+    try:
+        # Debug containers list
+        all_containers = self.client.containers.list()
+        logger.info(f"All containers: {all_containers}")
         
-        port = self._find_available_port()
+        nim_containers = [c for c in all_containers if 'com.nvidia.nim' in c.labels]
+        logger.info(f"NIM containers: {nim_containers}")
         
-        try:
-            container = self.docker_client.containers.run(
-                image_name,
-                detach=True,
-                remove=True,
-                environment=[f"NGC_API_KEY={settings.NGC_API_KEY}"],
-                ports={8000: port},
-                device_requests=[
-                    docker.types.DeviceRequest(
-                        count=-1,
-                        capabilities=[['gpu']]
-                    )
-                ],
-                shm_size='16G'
-            )
+        return [{
+            "container_id": c.id,
+            "image_name": self._extract_nim_name(c),
+            "port": self._get_container_port(c),
+            "status": c.status
+        } for c in nim_containers]
+    except Exception as e:
+        logger.error(f"Error in list_containers: {e}")
+        return []
 
-            container_info = {
-                "container_id": container.id,
-                "port": port,
-                "url": f"http://localhost:{port}",
-                "image_name": image_name
-            }
-            
-            self._active_nim = container_info
-            self.save_nim(container_info)
-            return container_info
+   def _extract_nim_name(self, container: docker.models.containers.Container) -> str:
+       try:
+           image_name = container.labels.get("com.nvidia.nim.image", "")
+           if not image_name:
+               image_name = container.image.tags[0] if container.image.tags else "unknown"
+           
+           if "/" in image_name:
+               return image_name.split("/")[-1].replace(':latest', '')
+           return image_name.replace(':latest', '')
+       except Exception as e:
+           logger.error(f"Error extracting NIM name: {e}")
+           return "unknown"
 
-        except Exception as e:
-            logger.error(f"Failed to start container: {e}")
-            raise RuntimeError(f"Container error: {str(e)}")
+   def _get_container_port(self, container: docker.models.containers.Container) -> Optional[int]:
+       try:
+           ports = container.attrs["NetworkSettings"]["Ports"]
+           if "5000/tcp" in ports and ports["5000/tcp"]:
+               return int(ports["5000/tcp"][0]["HostPort"])
+           return None
+       except (KeyError, IndexError, ValueError) as e:
+           logger.error(f"Error getting container port: {e}")
+           return None
 
-    def stop_container(self):
-        if not self._active_nim:
-            raise RuntimeError("No NIM is currently running.")
+   async def start_container(self, image_name: str) -> Dict[str, Any]:
+       try:
+           container = self.client.containers.run(
+               image_name,
+               detach=True,
+               remove=True,
+               environment=[f"NGC_API_KEY={settings.NGC_API_KEY}"],
+               labels={"com.nvidia.nim": "true", "com.nvidia.nim.image": image_name},
+               ports={5000: None},
+               device_requests=[
+                   docker.types.DeviceRequest(count=-1, capabilities=[['gpu']])
+               ],
+               shm_size='16G'
+           )
 
-        try:
-            container = self.docker_client.containers.get(self._active_nim["container_id"])
-            container.stop()
-            self._active_nim = None
-            if os.path.exists(settings.NIM_FILE):
-                os.remove(settings.NIM_FILE)
-        except Exception as e:
-            logger.error(f"Failed to stop container: {e}")
-            raise RuntimeError(f"Container stop error: {str(e)}")
+           await asyncio.sleep(2)  # Wait for container to initialize
 
-    def list_containers(self):
-        """
-        Retrieve all containers, including running and non-running ones,
-        filtered by those relevant to NIM.
-        """
-        try:
-            containers = self.docker_client.containers.list(all=True)  # Query all containers
-            logger.info(f"Raw container list: {containers}")
-            return [
-                {
-                    "id": container.id,
-                    "name": container.name,
-                    "status": container.status,
-                }
-                for container in containers
-                if "nim" in container.name.lower()  # Filter containers with 'nim' in their name
-            ]
-        except Exception as e:
-            logger.error(f"Failed to list containers: {e}")
-            raise RuntimeError("Unable to list containers.")
+           container_info = {
+               "container_id": container.id,
+               "image_name": self._extract_nim_name(container),
+               "port": self._get_container_port(container),
+               "status": container.status
+           }
+           
+           self._active_nim = container_info
+           self.save_nim(container_info)
+           return container_info
 
-    def _find_available_port(self) -> int:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(('', 0))
-        port = s.getsockname()[1]
-        s.close()
-        return port
+       except Exception as e:
+           logger.error(f"Failed to start container: {e}")
+           raise RuntimeError(f"Container error: {str(e)}")
 
+   def stop_container(self, container_id: str):
+       try:
+           container = self.client.containers.get(container_id)
+           container.stop()
+           container.remove()
+       except Exception as e:
+           logger.error(f"Error stopping container: {e}")
+           raise RuntimeError(f"Failed to stop container: {str(e)}")
+
+   def save_nim(self, nim_info: Dict):
+       try:
+           with open(settings.NIM_FILE, "w") as f:
+               json.dump(nim_info, f)
+       except Exception as e:
+           logger.error(f"Error saving NIM file: {e}")
+
+   def load_nim(self) -> Optional[Dict]:
+       try:
+           if not os.path.exists(settings.NIM_FILE):
+               logger.warning(f"NIM file not found: {settings.NIM_FILE}")
+               return None
+           
+           with open(settings.NIM_FILE, "r") as f:
+               data = f.read().strip()
+               if not data:
+                   return None
+               loaded_data = json.loads(data)
+               logger.info(f"Loaded NIM data: {loaded_data}")
+               return loaded_data
+               
+       except Exception as e:
+           logger.error(f"Error loading NIM file: {e}")
+           return None

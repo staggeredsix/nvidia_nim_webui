@@ -1,110 +1,95 @@
-```python
-# File: app/services/benchmark.py
+# benchmark.py
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from sqlalchemy.orm import Session
 from datetime import datetime
-import aiohttp
-from typing import List, Dict, Any
-from ..utils.logger import logger
-from .benchmark_progress import progress_tracker
+import json
+import asyncio
+from typing import Dict, Any
+from models.database import get_db
+from models.benchmark import BenchmarkRun
+from services.container  import ContainerManager
+from utils.logger import logger
+
+router = APIRouter()
+container_manager = ContainerManager()
 
 class BenchmarkConfig:
-    def __init__(
-        self,
-        total_requests: int,
-        concurrency_level: int,
-        max_tokens: int = 100,
-        timeout: int = 30,
-        prompt: str = "Explain quantum computing briefly"
-    ):
-        self.total_requests = total_requests
-        self.concurrency_level = concurrency_level
-        self.max_tokens = max_tokens
-        self.timeout = timeout
-        self.prompt = prompt
+   def __init__(self, total_requests: int = 100, concurrency_level: int = 10,
+                max_tokens: int = 100, prompt: str = ''):
+       self.total_requests = total_requests
+       self.concurrency_level = concurrency_level
+       self.max_tokens = max_tokens
+       self.prompt = prompt
 
-class BenchmarkExecutor:
-    def __init__(self, url: str, model_name: str, config: BenchmarkConfig):
-        self.url = url
-        self.model_name = model_name
-        self.config = config
-        self.run_id = None
-        self.start_time = None
+@router.post("/benchmark")
+async def create_benchmark(config: Dict[str, Any], db: Session = Depends(get_db)):
+   try:
+       logger.info(f"Received benchmark config: {config}")
+       nim_id = config.pop('nim_id', None)
+       
+       if not nim_id:
+           raise HTTPException(status_code=400, detail="NIM ID is required")
+           
+       nim = next((n for n in container_manager.list_containers() 
+                  if n['container_id'] == nim_id), None)
+       logger.info(f"Found NIM for benchmark: {nim}")
+       
+       if not nim:
+           raise HTTPException(status_code=404, detail="Selected NIM not found")
 
-    async def create_run(self) -> int:
-        # Create benchmark run record and return ID
-        # Implementation depends on your database service
-        pass
+       benchmark_config = BenchmarkConfig(
+           total_requests=config.get('total_requests', 100),
+           concurrency_level=config.get('concurrency_level', 10),
+           max_tokens=config.get('max_tokens', 100),
+           prompt=config.get('prompt', '')
+       )
 
-    async def run_benchmark(self) -> List[Dict[str, Any]]:
-        self.run_id = await self.create_run()
-        self.start_time = datetime.utcnow()
-        requests_completed = 0
-        
-        async with aiohttp.ClientSession() as session:
-            tasks = []
-            semaphore = asyncio.Semaphore(self.config.concurrency_level)
-            
-            for i in range(self.config.total_requests):
-                tasks.append(self._make_request(session, i, semaphore))
-            
-            for result in asyncio.as_completed(tasks):
-                requests_completed += 1
-                response = await result
-                
-                current_tps = self.calculate_tps(requests_completed)
-                await progress_tracker.update_progress(
-                    self.run_id,
-                    completed=requests_completed,
-                    current_tps=current_tps
-                )
-                
-            return await asyncio.gather(*tasks)
+       run = BenchmarkRun(
+           model_name=nim['image_name'],
+           config=json.dumps(config),
+           status="running",
+           nim_id=nim_id
+       )
+       db.add(run)
+       db.commit()
+       db.refresh(run)
+       
+       logger.info(f"Created benchmark run: {run.id}")
+       asyncio.create_task(execute_benchmark(run.id, nim, benchmark_config))
+       return {"run_id": run.id}
 
-    async def _make_request(self, session: aiohttp.ClientSession, request_id: int, semaphore: asyncio.Semaphore) -> Dict:
-        async with semaphore:
-            start_time = datetime.utcnow()
-            token_timestamps = []
-            
-            try:
-                async with session.post(
-                    f"{self.url}/v1/completions",
-                    json={
-                        "model": self.model_name,
-                        "prompt": self.config.prompt,
-                        "max_tokens": self.config.max_tokens,
-                    },
-                    timeout=self.config.timeout
-                ) as response:
-                    response.raise_for_status()
-                    response_json = await response.json()
+   except Exception as e:
+       logger.error(f"Failed to start benchmark: {e}")
+       raise HTTPException(status_code=500, detail=str(e))
 
-                    for token in response_json.get("tokens", []):
-                        token_timestamps.append(datetime.utcnow())
+async def execute_benchmark(run_id: int, nim: Dict[str, Any], config: BenchmarkConfig):
+   try:
+       logger.info(f"Starting benchmark execution for run {run_id}")
+       # Implement actual benchmark execution logic here
+       
+   except Exception as e:
+       logger.error(f"Benchmark execution failed: {e}")
 
-                    time_to_first_token = (token_timestamps[0] - start_time).total_seconds() if token_timestamps else 0
-                    inter_token_latency = (
-                        sum((token_timestamps[i] - token_timestamps[i - 1]).total_seconds()
-                            for i in range(1, len(token_timestamps)))
-                        / (len(token_timestamps) - 1)
-                    ) if len(token_timestamps) > 1 else 0.0
+@router.get("/benchmark/history")
+def get_benchmark_history(db: Session = Depends(get_db)):
+   try:
+       runs = db.query(BenchmarkRun).order_by(BenchmarkRun.start_time.desc()).all()
+       return [format_benchmark_run(run) for run in runs]
+   except Exception as e:
+       logger.error(f"Failed to get benchmark history: {e}")
+       raise HTTPException(status_code=500, detail=str(e))
 
-                    latency = (datetime.utcnow() - start_time).total_seconds()
+def format_benchmark_run(run: BenchmarkRun):
+   return {
+       "id": run.id,
+       "model_name": run.model_name,
+       "status": run.status,
+       "start_time": run.start_time.isoformat(),
+       "end_time": run.end_time.isoformat() if run.end_time else None,
+       "metrics": {
+           "average_tps": run.average_tps,
+           "peak_tps": run.peak_tps,
+           "p95_latency": run.p95_latency
+       }
+   }
 
-                    return {
-                        "request_id": request_id,
-                        "status": "success",
-                        "latency": latency,
-                        "time_to_first_token": time_to_first_token,
-                        "inter_token_latency": inter_token_latency
-                    }
-            except Exception as e:
-                logger.error(f"Request {request_id} failed: {e}")
-                return {
-                    "request_id": request_id,
-                    "status": "failed",
-                    "error": str(e)
-                }
-
-    def calculate_tps(self, completed_requests: int) -> float:
-        elapsed = (datetime.utcnow() - self.start_time).total_seconds()
-        return completed_requests / elapsed if elapsed > 0 else 0
-```

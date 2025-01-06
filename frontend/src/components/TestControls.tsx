@@ -1,206 +1,94 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Loader, AlertCircle } from 'lucide-react';
-
-interface BenchmarkConfig {
- totalRequests: number;
- concurrencyLevel: number;
- maxTokens: number;
- prompt: string;
-}
-
-interface BenchmarkProgress {
- completed: number;
- total: number;
- currentTps: number;
- estimatedTimeRemaining: number;
-}
+import React, { useState } from "react";
+import { startBenchmark, BenchmarkConfig } from "../services/api";
 
 interface TestControlsProps {
- onStartTest: (config: BenchmarkConfig) => Promise<void>;
+  onStartTest: (config: BenchmarkConfig) => Promise<void>;
 }
 
-const formatTime = (seconds: number): string => {
- const mins = Math.floor(seconds / 60);
- const secs = Math.floor(seconds % 60);
- return `${mins}m ${secs}s`;
-};
-
 const TestControls: React.FC<TestControlsProps> = ({ onStartTest }) => {
- const [config, setConfig] = useState<BenchmarkConfig>({
-   totalRequests: 100,
-   concurrencyLevel: 10,
-   maxTokens: 100,
-   prompt: "Explain quantum computing briefly"
- });
- const [loading, setLoading] = useState(false);
- const [error, setError] = useState<string | null>(null);
- const [progress, setProgress] = useState<BenchmarkProgress | null>(null);
+  const [totalRequests, setTotalRequests] = useState(100);
+  const [concurrencyLevel, setConcurrencyLevel] = useState(10);
+  const [maxTokens, setMaxTokens] = useState(50);
+  const [prompt, setPrompt] = useState("Translate the following text:");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
- useEffect(() => {
-   if (!loading) return;
-   
-   const ws = new WebSocket(`ws://${window.location.host}/ws/benchmark`);
-   
-   ws.onmessage = (event) => {
-     try {
-       const data = JSON.parse(event.data);
-       if (data.type === 'benchmark_progress') {
-         setProgress(data.progress);
-       }
-     } catch (err) {
-       console.error('Failed to parse progress update:', err);
-     }
-   };
+  const handleStartTest = async () => {
+    setIsSubmitting(true);
+    const config = {
+      total_requests: totalRequests,
+      concurrency_level: concurrencyLevel,
+      max_tokens: maxTokens,
+      prompt,
+    };
 
-   ws.onerror = () => {
-     setError('Lost connection to benchmark progress');
-   };
+    try {
+      await onStartTest(config);
+      alert("Benchmark started successfully!");
+    } catch (error) {
+      console.error("Failed to start benchmark:", error);
+      alert("Failed to start benchmark. Please check the configuration.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-   return () => ws.close();
- }, [loading]);
+  return (
+    <div className="bg-gray-800 p-6 rounded-lg space-y-4">
+      <h2 className="text-xl font-bold">Test Controls</h2>
 
- const validate = (): boolean => {
-   if (config.totalRequests < 1 || config.concurrencyLevel < 1) {
-     setError("Request count and concurrency must be greater than 0");
-     return false;
-   }
-   if (config.concurrencyLevel > config.totalRequests) {
-     setError("Concurrency cannot exceed total requests");
-     return false;
-   }
-   if (!config.prompt.trim()) {
-     setError("Prompt cannot be empty");
-     return false;
-   }
-   return true;
- };
+      <div className="flex flex-col space-y-2">
+        <label className="flex flex-col">
+          <span>Total Requests:</span>
+          <input
+            type="number"
+            value={totalRequests}
+            onChange={(e) => setTotalRequests(Number(e.target.value))}
+            className="p-2 bg-gray-700 rounded"
+            min={1}
+          />
+        </label>
 
- const handleSubmit = async (e: React.FormEvent) => {
-   e.preventDefault();
-   setError(null);
-   setProgress(null);
-   
-   if (!validate()) return;
+        <label className="flex flex-col">
+          <span>Concurrency Level:</span>
+          <input
+            type="number"
+            value={concurrencyLevel}
+            onChange={(e) => setConcurrencyLevel(Number(e.target.value))}
+            className="p-2 bg-gray-700 rounded"
+            min={1}
+          />
+        </label>
 
-   setLoading(true);
-   try {
-     await onStartTest(config);
-   } catch (err) {
-     setError(err instanceof Error ? err.message : 'Failed to start benchmark');
-     setProgress(null);
-   } finally {
-     setLoading(false);
-   }
- };
+        <label className="flex flex-col">
+          <span>Max Tokens:</span>
+          <input
+            type="number"
+            value={maxTokens}
+            onChange={(e) => setMaxTokens(Number(e.target.value))}
+            className="p-2 bg-gray-700 rounded"
+            min={1}
+          />
+        </label>
 
- const ProgressBar = () => {
-   if (!progress) return null;
-   const percent = (progress.completed / progress.total) * 100;
-   
-   return (
-     <div className="space-y-2">
-       <div className="flex justify-between text-sm">
-         <span>{progress.completed} / {progress.total} requests</span>
-         <span>{progress.currentTps.toFixed(1)} tok/s</span>
-       </div>
-       <div className="w-full bg-gray-700 rounded-full h-2">
-         <div 
-           className="bg-[#76B900] h-2 rounded-full transition-all" 
-           style={{ width: `${percent}%` }}
-         />
-       </div>
-       <div className="text-sm text-gray-400">
-         Est. time remaining: {formatTime(progress.estimatedTimeRemaining)}
-       </div>
-     </div>
-   );
- };
+        <label className="flex flex-col">
+          <span>Prompt:</span>
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            className="p-2 bg-gray-700 rounded"
+          />
+        </label>
+      </div>
 
- return (
-   <div className="card space-y-6">
-     {error && (
-       <div className="bg-red-900/50 border border-red-500 rounded-lg p-4 flex items-center">
-         <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-         <span>{error}</span>
-       </div>
-     )}
-
-     <form onSubmit={handleSubmit} className="space-y-4">
-       <div className="grid grid-cols-2 gap-4">
-         <div>
-           <label className="block text-sm font-medium text-gray-300 mb-1">
-             Total Requests
-           </label>
-           <input
-             type="number"
-             value={config.totalRequests}
-             onChange={e => setConfig(p => ({ ...p, totalRequests: parseInt(e.target.value) }))}
-             min={1}
-             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2"
-             disabled={loading}
-           />
-         </div>
-         <div>
-           <label className="block text-sm font-medium text-gray-300 mb-1">
-             Concurrency Level
-           </label>
-           <input
-             type="number"
-             value={config.concurrencyLevel}
-             onChange={e => setConfig(p => ({ ...p, concurrencyLevel: parseInt(e.target.value) }))}
-             min={1}
-             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2"
-             disabled={loading}
-           />
-         </div>
-         <div>
-           <label className="block text-sm font-medium text-gray-300 mb-1">
-             Max Tokens
-           </label>
-           <input
-             type="number"
-             value={config.maxTokens}
-             onChange={e => setConfig(p => ({ ...p, maxTokens: parseInt(e.target.value) }))}
-             min={1}
-             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2"
-             disabled={loading}
-           />
-         </div>
-         <div className="col-span-2">
-           <label className="block text-sm font-medium text-gray-300 mb-1">
-             Prompt
-           </label>
-           <textarea
-             value={config.prompt}
-             onChange={e => setConfig(p => ({ ...p, prompt: e.target.value }))}
-             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2"
-             disabled={loading}
-           />
-         </div>
-       </div>
-
-       {loading && <ProgressBar />}
-
-       <button
-         type="submit"
-         disabled={loading}
-         className="btn btn-primary w-full flex items-center justify-center"
-       >
-         {loading ? (
-           <>
-             <Loader className="w-4 h-4 mr-2 animate-spin" />
-             Running Benchmark...
-           </>
-         ) : (
-           <>
-             <Play className="w-4 h-4 mr-2" />
-             Start Benchmark
-           </>
-         )}
-       </button>
-     </form>
-   </div>
- );
+      <button
+        onClick={handleStartTest}
+        disabled={isSubmitting}
+        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+      >
+        {isSubmitting ? "Starting..." : "Start Benchmark"}
+      </button>
+    </div>
+  );
 };
 
 export default TestControls;

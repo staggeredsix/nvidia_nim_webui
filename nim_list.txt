@@ -1,1 +1,1 @@
-{"container_id": "77e84040d40523795ece0a6ad371ebea775d6dc75419666611cd558cff0bc12e", "port": 36781, "url": "http://localhost:36781", "image_name": "nvcr.io/nim/mistralai/mistral-7b-instruct-v0.3:latest"}
+{"container_id": "dae13d0240fd29865a3307496a7918570c2906fa4b516c610502863f5e3c76c7", "image_name": "mistral-7b-instruct-v0.3", "port": null, "status": "created"}
