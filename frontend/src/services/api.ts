@@ -1,28 +1,32 @@
 // src/services/api.ts
-
 import axios from "axios";
 
 const BASE_URL = "http://localhost:8000";
 
 // Interfaces
-export interface BenchmarkConfigHolder {
+export interface BenchmarkConfig {
   total_requests: number;
   concurrency_level: number;
   max_tokens?: number;
-  timeout?: number;
   prompt: string;
   name: string;
   description?: string;
+  nim_id: string;
 }
 
 export interface ContainerInfo {
   container_id: string;
-  port: number;
-  url: string;
+  image_name: string;
+  port: number | null;
+  status: string;
+  is_container: boolean;
   health: {
-    healthy: boolean,
-    status: string
-  }
+    healthy: boolean;
+    status: string;
+    checks: any[];
+  };
+  labels: Record<string, string>;
+  tags: string[];
 }
 
 export interface BenchmarkMetrics {
@@ -53,45 +57,31 @@ export interface BenchmarkRun {
   metrics?: BenchmarkMetrics;
 }
 
-// Function Implementations with Holders
-const getNimsHolder = async (): Promise<ContainerInfo[]> => {
-  const response = await axios.get(`${BASE_URL}/api/nims`);
-  return response.data;
+// API Functions
+export const startBenchmark = async (config: BenchmarkConfig) => {
+  console.log("Sending benchmark request:", config);
+  try {
+    const response = await axios.post(`${BASE_URL}/api/benchmark`, config);
+    return response.data;
+  } catch (error) {
+    console.error("Benchmark request error:", error);
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.detail || 'Failed to start benchmark');
+    }
+    throw error;
+  }
 };
 
-const pullNimHolder = async (imageName: string): Promise<ContainerInfo> => {
-  const response = await axios.post(`${BASE_URL}/api/nims/pull`, { imageName });
-  return response.data.container;
-};
-
-const stopNimHolder = async (): Promise<void> => {
-  await axios.post(`${BASE_URL}/api/nims/stop`);
-};
-
-const startBenchmarkHolder = async (
-  config: BenchmarkConfigHolder
-): Promise<{ run_id: number }> => {
-  const response = await axios.post(`${BASE_URL}/api/benchmark`, config);
-  return response.data;
-};
-
-const fetchBenchmarkHistoryHolder = async (): Promise<BenchmarkRun[]> => {
+export const fetchBenchmarkHistory = async (): Promise<BenchmarkRun[]> => {
   const response = await axios.get(`${BASE_URL}/api/benchmark/history`);
   return response.data;
 };
 
-const exportBenchmarkHolder = async (runId: number): Promise<Blob> => {
-  const response = await axios.get(`${BASE_URL}/api/benchmark/${runId}/export`, {
-    responseType: 'blob'
-  });
-  return response.data;
-};
-
-const saveNgcKeyHolder = async (key: string): Promise<void> => {
+export const saveNgcKey = async (key: string): Promise<void> => {
   await axios.post(`${BASE_URL}/api/ngc-key`, { key });
 };
 
-const getNgcKeyHolder = async (): Promise<string | null> => {
+export const getNgcKey = async (): Promise<string | null> => {
   try {
     const response = await axios.get(`${BASE_URL}/api/ngc-key`);
     return response.data.key;
@@ -103,33 +93,20 @@ const getNgcKeyHolder = async (): Promise<string | null> => {
   }
 };
 
-const deleteNgcKeyHolder = async (): Promise<void> => {
+export const deleteNgcKey = async (): Promise<void> => {
   await axios.delete(`${BASE_URL}/api/ngc-key`);
 };
 
-// WebSocket Utility with Holder
-const useWebSocketHolder = (url: string): WebSocket => {
-  const ws = new WebSocket(url);
-  ws.onopen = () => console.log("WebSocket connected");
-  ws.onclose = () => console.log("WebSocket disconnected");
-  return ws;
+export const getNims = async (): Promise<ContainerInfo[]> => {
+  const response = await axios.get(`${BASE_URL}/api/nims`);
+  return response.data;
 };
 
-// Export Aliases
-export const getNims = getNimsHolder;
-export const pullNim = pullNimHolder;
-export const stopNim = stopNimHolder;
-export const startBenchmark = startBenchmarkHolder;
-export const fetchBenchmarkHistory = fetchBenchmarkHistoryHolder;
-export const exportBenchmark = exportBenchmarkHolder;
-export const saveNgcKey = saveNgcKeyHolder;
-export const getNgcKey = getNgcKeyHolder;
-export const deleteNgcKey = deleteNgcKeyHolder;
-export const useWebSocket = useWebSocketHolder;
+export const pullNim = async (imageName: string): Promise<ContainerInfo> => {
+  const response = await axios.post(`${BASE_URL}/api/nims/pull`, { image_name: imageName });
+  return response.data.container;
+};
 
-const ws = new WebSocket("ws://localhost:8000/ws");
-
-ws.onopen = () => console.log("WebSocket connected");
-ws.onmessage = (event) => console.log("Received:", event.data);
-ws.onerror = (error) => console.error("WebSocket error:", error);
-ws.onclose = () => console.log("WebSocket disconnected");
+export const stopNim = async (): Promise<void> => {
+  await axios.post(`${BASE_URL}/api/nims/stop`);
+};

@@ -1,2 +1,8 @@
 # app/__init__.py
-from .config import settings
+"""
+NIM Benchmark System
+-------------------
+A tool for benchmarking NVIDIA Inference Microservices.
+"""
+
+__version__ = '1.0.0'

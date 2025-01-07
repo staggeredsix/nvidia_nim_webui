@@ -1,74 +1,84 @@
 # app/main.py
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.websockets import WebSocketState
 from pathlib import Path
+import asyncio
+from datetime import datetime
+
 from .api.routes import api_router
-from .models.database import Base, engine
 from .utils.metrics import collect_metrics
 from .utils.connection import ConnectionManager
-import asyncio
 from .utils.logger import logger
-from fastapi.websockets import WebSocketState
-from app.services.benchmark_progress import ProgressTracker
-progress_tracker = ProgressTracker()
+from .services.benchmark_progress import ProgressTracker
 
-# Create tables
-Base.metadata.create_all(bind=engine)
+progress_tracker = ProgressTracker()
 
 app = FastAPI(strict_slashes=False)
 connection_manager = ConnectionManager()
+
+# Mount API router without benchmark prefix to fix 405 error
 app.include_router(api_router, prefix="/api")
 app.mount("/assets", StaticFiles(directory="frontend_dist/assets"), name="assets")
 
-# Create an instance of CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with specific origins for production
+    allow_origins=["*"],
     allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     allow_headers=["*"],
-    #allow_credentials=False,
 )
 
-# Define WebSocket route for metrics
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+@app.websocket("/metrics")
+async def metrics_websocket(websocket: WebSocket):
     await websocket.accept()
     try:
         await connection_manager.connect(websocket)
         while True:
             try:
+                # Use WebSocketState for state checking
                 if websocket.client_state == WebSocketState.DISCONNECTED:
                     break
+                    
                 metrics = collect_metrics()
-                if metrics:
-                    await websocket.send_json({
-                        "type": "metrics_update",
-                        "metrics": metrics
-                    })
+                # Send empty metrics instead of breaking if no data available
+                await websocket.send_json({
+                    "type": "metrics_update",
+                    "metrics": metrics or {
+                        "tokens_per_second": 0,
+                        "gpu_utilization": 0,
+                        "power_efficiency": 0,
+                        "gpu_memory": 0,
+                        "gpu_temp": 0,
+                        "timestamp": str(datetime.utcnow()),
+                        "requests_per_second": 0,
+                        "latency": 0,
+                        "memory_used": 0,
+                        "memory_total": 0
+                    }
+                })
             except WebSocketDisconnect:
                 break
             except Exception as e:
                 logger.error(f"WebSocket error: {str(e)}")
                 break
-            await asyncio.sleep(1)
+            await asyncio.sleep(10)  # 10 second refresh rate
     finally:
-        if websocket.client_state != WebSocketState.DISCONNECTED:
-            try:
-                await websocket.close()
-            except:
-                pass
         await connection_manager.disconnect(websocket)
+        try:
+            if websocket.client_state != WebSocketState.DISCONNECTED:
+                await websocket.close()
+        except Exception as e:
+            logger.error(f"Error closing websocket: {e}")
 
-# Define WebSocket route for benchmark progress
 @app.websocket("/ws/benchmark")
 async def benchmark_progress_ws(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
             if websocket.client_state == WebSocketState.DISCONNECTED:
-                break  # Exit the loop if the client has disconnected
+                break
             
             if not progress_tracker.progress:
                 await asyncio.sleep(1)
@@ -86,46 +96,21 @@ async def benchmark_progress_ws(websocket: WebSocket):
                 })
             await asyncio.sleep(0.5)
     except WebSocketDisconnect:
-        pass  # No need to do anything here since the connection is already closed.
+        pass
     except Exception as e:
         logger.error(f"Benchmark WebSocket error: {e}")
     finally:
-        await websocket.close()  # Ensure the connection is closed properly
-
-@app.websocket("/metrics")
-async def metrics_websocket(websocket: WebSocket):
-    logger.info(f"WebSocket connection attempt from: {websocket.client.host}")
-    await websocket.accept()
-    try:
-        while True:
-            metrics = collect_metrics()
-            if metrics:
-                await websocket.send_json({"type": "metrics_update", "metrics": metrics})
-            await asyncio.sleep(1)
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected: {websocket.client.host}")
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-    finally:
-        if websocket.client_state != WebSocketState.DISCONNECTED:
-            try:
+        try:
+            if websocket.client_state != WebSocketState.DISCONNECTED:
                 await websocket.close()
-            except:
-                pass
-
+        except Exception as e:
+            logger.error(f"Error closing benchmark websocket: {e}")
 
 @app.get("/{full_path:path}")
 def serve_spa(full_path: str):
-    if full_path.startswith("api") or full_path.startswith("ws"):
-        raise HTTPException(status_code=404)
+    if full_path.startswith("api/") or full_path.startswith("ws/"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     spa_path = Path("frontend_dist/index.html")
     if not spa_path.exists():
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return FileResponse(spa_path)
-
-print("Registered Routes:")
-for route in app.routes:
-    if hasattr(route, "methods"):  # Ensure the route has a methods attribute
-        print(f"Path: {route.path}, Name: {route.name}, Methods: {route.methods}")
-    else:
-        print(f"Path: {route.path}, Name: {route.name}, Type: {type(route).__name__}")

@@ -1,6 +1,6 @@
 # app/api/endpoints/__init__.py
-from .benchmark import router as benchmark_router
+
 from .nim import router as nim_router
 from .ngc import router as ngc_router
-
-__all__ = ['benchmark_router', 'nim_router', 'ngc_router']
+from .benchmark_config import get_benchmark_config
+__all__ = ['nim_router', 'ngc_router']

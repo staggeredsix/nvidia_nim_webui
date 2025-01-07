@@ -1,5 +1,4 @@
-# File: app/services/__init__.py
-from .container import ContainerManager
-from .nim_pull import NimPullProgress
+# app/services/__init__.py
+from .container import container_manager
 
-__all__ = ['ContainerManager', 'NimPullProgress']
+__all__ = ['container_manager']
