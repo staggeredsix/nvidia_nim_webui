@@ -1,1 +1,0 @@
-{"container_id": "dae13d0240fd29865a3307496a7918570c2906fa4b516c610502863f5e3c76c7", "image_name": "mistral-7b-instruct-v0.3", "port": null, "status": "created"}
