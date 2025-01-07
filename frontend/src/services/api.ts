@@ -1,3 +1,5 @@
+// src/services/api.ts
+
 import axios from "axios";
 
 const BASE_URL = "http://localhost:8000";
@@ -9,25 +11,46 @@ export interface BenchmarkConfigHolder {
   max_tokens?: number;
   timeout?: number;
   prompt: string;
+  name: string;
+  description?: string;
 }
 
-export interface ContainerInfoHolder {
+export interface ContainerInfo {
   container_id: string;
   port: number;
   url: string;
+  health: {
+    healthy: boolean,
+    status: string
+  }
 }
 
-export interface BenchmarkRunHolder {
-  id: number; // Added the id field
+export interface BenchmarkMetrics {
+  average_tps: number;
+  peak_tps: number;
+  p95_latency: number;
+  time_to_first_token: number;
+  inter_token_latency: number;
+  average_gpu_utilization: number;
+  peak_gpu_utilization: number;
+  average_gpu_memory: number;
+  peak_gpu_memory: number;
+  gpu_power_draw: number;
+  total_tokens: number;
+  successful_requests: number;
+  failed_requests: number;
+}
+
+export interface BenchmarkRun {
+  id: number;
+  name: string;
+  description?: string;
   model_name: string;
   status: string;
   start_time: string;
   end_time?: string;
-  metrics: {
-    average_tps: number;
-    peak_tps: number;
-    p95_latency: number;
-  };
+  config: any;
+  metrics?: BenchmarkMetrics;
 }
 
 // Function Implementations with Holders
@@ -46,20 +69,22 @@ const stopNimHolder = async (): Promise<void> => {
 };
 
 const startBenchmarkHolder = async (
-  config: BenchmarkConfig
+  config: BenchmarkConfigHolder
 ): Promise<{ run_id: number }> => {
-  const response = await axios.post(`${BASE_URL}/api/benchmark/standard`, config);
+  const response = await axios.post(`${BASE_URL}/api/benchmark`, config);
   return response.data;
 };
 
-const fetchBenchmarkHistoryHolder = async (): Promise<BenchmarkRunHolder[]> => {
+const fetchBenchmarkHistoryHolder = async (): Promise<BenchmarkRun[]> => {
   const response = await axios.get(`${BASE_URL}/api/benchmark/history`);
   return response.data;
 };
 
-const addBenchmarkRunHolder = async (run: BenchmarkRunHolder): Promise<string> => {
-  const response = await axios.post(`${BASE_URL}/api/benchmark/add`, run);
-  return response.data.message;
+const exportBenchmarkHolder = async (runId: number): Promise<Blob> => {
+  const response = await axios.get(`${BASE_URL}/api/benchmark/${runId}/export`, {
+    responseType: 'blob'
+  });
+  return response.data;
 };
 
 const saveNgcKeyHolder = async (key: string): Promise<void> => {
@@ -72,7 +97,7 @@ const getNgcKeyHolder = async (): Promise<string | null> => {
     return response.data.key;
   } catch (error: any) {
     if (error.response?.status === 404) {
-      return null; // Key not found
+      return null;
     }
     throw error;
   }
@@ -96,18 +121,13 @@ export const pullNim = pullNimHolder;
 export const stopNim = stopNimHolder;
 export const startBenchmark = startBenchmarkHolder;
 export const fetchBenchmarkHistory = fetchBenchmarkHistoryHolder;
-export const addBenchmarkRun = addBenchmarkRunHolder;
+export const exportBenchmark = exportBenchmarkHolder;
 export const saveNgcKey = saveNgcKeyHolder;
 export const getNgcKey = getNgcKeyHolder;
 export const deleteNgcKey = deleteNgcKeyHolder;
 export const useWebSocket = useWebSocketHolder;
 
-// Type Exports
-export type BenchmarkConfig = BenchmarkConfigHolder;
-export type ContainerInfo = ContainerInfoHolder;
-export type BenchmarkRun = BenchmarkRunHolder;
-
-const ws = new WebSocket("ws://localhost:8000/ws"); // Ensure this URL is correct
+const ws = new WebSocket("ws://localhost:8000/ws");
 
 ws.onopen = () => console.log("WebSocket connected");
 ws.onmessage = (event) => console.log("Received:", event.data);

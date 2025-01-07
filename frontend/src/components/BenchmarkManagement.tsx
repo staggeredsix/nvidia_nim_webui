@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { startBenchmark, BenchmarkConfig } from "../services/api";
+import { startBenchmark, BenchmarkConfigHolder as BenchmarkConfig } from "../services/api";
 
 const BenchmarkManagement: React.FC = () => {
   const [totalRequests, setTotalRequests] = useState(100);
@@ -14,7 +14,8 @@ const BenchmarkManagement: React.FC = () => {
       total_requests: totalRequests,
       concurrency_level: concurrencyLevel,
       max_tokens: maxTokens,
-      prompt,
+      name: prompt,
+      prompt: ""
     };
 
     try {

@@ -6,7 +6,7 @@ import json
 import asyncio
 from typing import Dict, Any
 from models.database import get_db
-from models.benchmark import BenchmarkRun
+from app.models.benchmark_telemetry import BenchmarkRun
 from services.container  import ContainerManager
 from utils.logger import logger
 
