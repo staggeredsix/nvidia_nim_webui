@@ -12,36 +12,7 @@ NIM Benchmark System is a tool designed to benchmark NVIDIA Inference Microservi
 - NVIDIA GPU with appropriate drivers
 - NGC API Key
 
-## Dependencies
 
-### Backend Dependencies
-```bash
-# Core dependencies
-aiohttp>=3.8.0
-fastapi>=0.68.0
-uvicorn>=0.15.0
-pydantic>=1.8.0
-python-dotenv>=0.19.0
-sqlalchemy>=1.4.0
-websockets>=10.0.0
-prometheus-client>=0.12.0
-docker>=6.1.0
-cryptography>=41.0.0
-
-# Testing
-pytest>=6.0.0
-pytest-asyncio>=0.16.0
-pytest-cov>=2.0.0
-
-# Development
-black>=22.3.0
-isort>=5.9.3
-mypy>=0.910
-
-# Database
-aiosqlite>=0.17.0
-alembic>=1.7.0
-```
 
 ### Frontend Dependencies
 ```json
@@ -85,12 +56,6 @@ npm install
    - Obtain an NGC API key from the NVIDIA NGC website
    - Use the settings page in the UI to add your key
 
-2. Environment variables (create `.env` in backend directory):
-```env
-DATABASE_URL=sqlite:///benchmarks.db
-PORT=8000
-```
-
 ## Usage
 
 1. Start the backend server:
@@ -116,7 +81,6 @@ npm run dev
 - GPU metrics tracking
 
 ## Known Issues
-- Real-time metrics occasionally disconnect
 - Memory usage reporting needs optimization
 - Some UI elements need polish
 
