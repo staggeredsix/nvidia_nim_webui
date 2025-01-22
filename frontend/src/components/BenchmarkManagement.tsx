@@ -1,5 +1,6 @@
+// src/components/BenchmarkManagement.tsx
 import React, { useState } from "react";
-import { startBenchmark, BenchmarkConfigHolder as BenchmarkConfig } from "../services/api";
+import { startBenchmark, BenchmarkConfig } from "../services/api";  // Fixed import
 
 const BenchmarkManagement: React.FC = () => {
   const [totalRequests, setTotalRequests] = useState(100);
@@ -15,7 +16,8 @@ const BenchmarkManagement: React.FC = () => {
       concurrency_level: concurrencyLevel,
       max_tokens: maxTokens,
       name: prompt,
-      prompt: ""
+      prompt: prompt,
+      nim_id: ""  // This should be selected by the user
     };
 
     try {

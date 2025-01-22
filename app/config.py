@@ -1,7 +1,7 @@
 # File: app/config.py
 import os
 import logging
-from helpers.ngc_key_helper import retrieve_key
+from app.utils.ngc_key_helper import retrieve_key
 
 # Set up basic logging before importing other modules
 logging.basicConfig(

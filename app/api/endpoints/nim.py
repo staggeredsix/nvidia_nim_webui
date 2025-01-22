@@ -4,7 +4,7 @@ from typing import Dict, Any
 from pydantic import BaseModel
 from app.services.container import ContainerManager
 from app.utils.logger import logger
-from helpers.ngc_key_helper import key_exists
+from app.utils.ngc_key_helper import key_exists
 
 router = APIRouter()
 container_manager = ContainerManager()
@@ -32,13 +32,14 @@ async def stop_nim():
         logger.error(f"Failed to stop NIM: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/list", tags=["nim"])
 async def list_nims():
     try:
         containers = container_manager.list_containers()
         return containers if containers is not None else []
     except Exception as e:
-        logger.error(f"Error listing containers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         return []
 
 @router.get("/", tags=["nim"])

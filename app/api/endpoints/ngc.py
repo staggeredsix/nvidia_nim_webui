@@ -1,7 +1,7 @@
 # File: app/api/endpoints/ngc.py
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from helpers.ngc_key_helper import save_key, retrieve_key, delete_key, key_exists
+from app.utils.ngc_key_helper import save_key, retrieve_key, delete_key, key_exists
 from ...config import settings
 
 router = APIRouter()
@@ -22,7 +22,7 @@ async def set_ngc_key(request: NGCKeyRequest):
 async def get_ngc_key():
     if not key_exists():
         raise HTTPException(status_code=404, detail="Key not found")
-    return {"key": retrieve_key()}
+    return {"exists": True}
 
 @router.delete("")
 async def delete_ngc_key():

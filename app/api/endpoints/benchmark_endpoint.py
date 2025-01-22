@@ -1,63 +1,33 @@
 # app/api/endpoints/benchmark_endpoint.py
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import Dict, Any, Optional
+from pydantic import BaseModel, Field
+from typing import Optional, Dict
 
-from ...services.benchmark_service import benchmark_service
-from ...services.container import container_manager
-from ...utils.logger import logger
+# Correct import path
+from app.services.benchmark import benchmark_service
 
 router = APIRouter()
 
 class BenchmarkConfig(BaseModel):
-    total_requests: int
-    concurrency_level: int
-    max_tokens: Optional[int] = None
-    prompt: str
-    name: str
-    description: Optional[str] = None
-    nim_id: str
+    total_requests: int = Field(..., gt=0, description="Total number of requests to send")
+    concurrency_level: int = Field(..., gt=0, description="Number of concurrent requests")
+    max_tokens: Optional[int] = Field(None, gt=0, description="Maximum number of tokens per request")
+    prompt: str = Field(..., min_length=1, description="Prompt template for the benchmark")
+    name: str = Field(..., min_length=1, description="Name of the benchmark")
+    description: Optional[str] = Field(None, description="Optional description of the benchmark")
+    nim_id: str = Field(..., min_length=1, description="ID of the NIM container to use")
 
-@router.post("/")  # Changed from @router.post("/benchmark")
+@router.post("/")
 async def create_benchmark(config: BenchmarkConfig):
     try:
-        logger.info(f"Received benchmark config: {config}")
-        
-        # Validate NIM exists
-        nim = next((n for n in container_manager.list_containers() 
-                   if n['container_id'] == config.nim_id), None)
-        
-        if not nim:
-            raise HTTPException(status_code=404, detail="Selected NIM not found")
-
-        run = benchmark_service.create_benchmark({
-            "total_requests": config.total_requests,
-            "concurrency_level": config.concurrency_level,
-            "max_tokens": config.max_tokens,
-            "prompt": config.prompt,
-            "name": config.name,
-            "description": config.description,
-            "nim_id": config.nim_id,
-            "model_name": nim['image_name']
-        })
-        
-        logger.info(f"Created benchmark run: {run.id}")
+        run = await benchmark_service.create_benchmark(config.model_dump())
         return {"run_id": run.id}
-
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Failed to start benchmark: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/history")
 def get_benchmark_history():
-    try:
-        runs = benchmark_service.get_benchmark_history()
-        return [run.to_dict() for run in runs]
-    except Exception as e:
-        logger.error(f"Failed to get benchmark history: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return [run for run in benchmark_service.get_benchmark_history()]
 
 @router.get("/{run_id}")
 def get_benchmark(run_id: int):

@@ -54,12 +54,11 @@ const App = () => {
         <div className="flex-1">
           <header className="bg-gray-950 p-4 shadow-lg">
             <div className="flex items-center justify-between">
-              <h1 className="text-xl font-semibold">NVIDIA Inference Manager Benchmarks</h1>
+              <h1 className="text-xl font-semibold">NVIDIA vLLM NIM Benchmark Manager</h1>
               <div className="flex items-center space-x-4">
                 <Link 
                   to="/benchmarks" 
-                  className="px-4 py-2 bg-[#76B900] text-white rounded-lg hover:bg-[#88d600] transition-colors"
-                >
+                  className="px-4 py-2 bg-[#76B900] text-white rounded-lg hover:bg-[#88d600] transition-colors">
                   New Benchmark
                 </Link>
               </div>

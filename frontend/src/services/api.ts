@@ -1,8 +1,9 @@
 // src/services/api.ts
 import axios from "axios";
 
-const BASE_URL = "http://localhost:8000";
-
+const BASE_URL = `http://${window.location.hostname}:7000`;
+const WS_BASE = `ws://${window.location.hostname}:7000`;
+console.log("API Base URL:", BASE_URL);
 // Interfaces
 export interface BenchmarkConfig {
   total_requests: number;
@@ -12,6 +13,7 @@ export interface BenchmarkConfig {
   name: string;
   description?: string;
   nim_id: string;
+  gpu_count?: number;
 }
 
 export interface ContainerInfo {
@@ -73,12 +75,22 @@ export const startBenchmark = async (config: BenchmarkConfig) => {
 };
 
 export const fetchBenchmarkHistory = async (): Promise<BenchmarkRun[]> => {
-  const response = await axios.get(`${BASE_URL}/api/benchmark/history`);
-  return response.data;
+  try {
+    const response = await axios.get(`${BASE_URL}/api/benchmark/history`);
+    return response.data;
+  } catch (error) {
+    console.error("Failed to fetch benchmark history:", error);
+    throw error;
+  }
 };
 
 export const saveNgcKey = async (key: string): Promise<void> => {
-  await axios.post(`${BASE_URL}/api/ngc-key`, { key });
+  try {
+    await axios.post(`${BASE_URL}/api/ngc-key`, { key });
+  } catch (error) {
+    console.error("Error saving NGC key:", error);
+    throw error;
+  }
 };
 
 export const getNgcKey = async (): Promise<string | null> => {
@@ -89,24 +101,66 @@ export const getNgcKey = async (): Promise<string | null> => {
     if (error.response?.status === 404) {
       return null;
     }
+    console.error("Error retrieving NGC key:", error);
     throw error;
   }
 };
 
 export const deleteNgcKey = async (): Promise<void> => {
-  await axios.delete(`${BASE_URL}/api/ngc-key`);
+  try {
+    await axios.delete(`${BASE_URL}/api/ngc-key`);
+  } catch (error) {
+    console.error("Error deleting NGC key:", error);
+    throw error;
+  }
 };
 
 export const getNims = async (): Promise<ContainerInfo[]> => {
-  const response = await axios.get(`${BASE_URL}/api/nims`);
-  return response.data;
+  try {
+    const response = await axios.get(`${BASE_URL}/api/nims`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching NIMs:", error);
+    throw error;
+  }
 };
 
 export const pullNim = async (imageName: string): Promise<ContainerInfo> => {
-  const response = await axios.post(`${BASE_URL}/api/nims/pull`, { image_name: imageName });
-  return response.data.container;
+  try {
+    const response = await axios.post(`${BASE_URL}/api/nims/pull`, { image_name: imageName });
+    return response.data.container;
+  } catch (error) {
+    console.error("Error pulling NIM:", error);
+    throw error;
+  }
 };
 
 export const stopNim = async (): Promise<void> => {
-  await axios.post(`${BASE_URL}/api/nims/stop`);
+  try {
+    await axios.post(`${BASE_URL}/api/nims/stop`);
+  } catch (error) {
+    console.error("Error stopping NIM:", error);
+    throw error;
+  }
+};
+
+export const saveLogs = async (containerId: string, filename: string): Promise<void> => {
+  try {
+    await axios.post(`${BASE_URL}/api/logs/save`, {
+      container_id: containerId,
+      filename: filename
+    });
+  } catch (error) {
+    console.error("Error saving logs:", error);
+    throw error;
+  }
+};
+
+// WebSocket connection for live logs
+export const createLogStream = (containerId: string, onMessage: (log: string) => void) => {
+  const ws = new WebSocket(`${WS_BASE}/ws/logs/${containerId}`);
+  ws.onmessage = (event) => {
+    onMessage(JSON.parse(event.data).log);
+  };
+  return ws;
 };

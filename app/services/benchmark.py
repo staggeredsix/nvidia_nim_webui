@@ -1,95 +1,197 @@
-# benchmark.py
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from sqlalchemy.orm import Session
-from datetime import datetime
+# app/services/benchmark.py
 import json
 import asyncio
-from typing import Dict, Any
-from models.database import get_db
-from app.models.benchmark_telemetry import BenchmarkRun
-from services.container  import ContainerManager
-from utils.logger import logger
+import aiohttp
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Any, Optional
+from ..utils.logger import logger
+from ..services.container import container_manager
 
-router = APIRouter()
-container_manager = ContainerManager()
+class BenchmarkService:
+    def __init__(self, benchmark_dir: str = "benchmarks"):
+        self.benchmark_dir = Path(benchmark_dir)
+        self.benchmark_dir.mkdir(exist_ok=True)
+        self.current_benchmark_metrics = {}
 
-class BenchmarkConfig:
-   def __init__(self, total_requests: int = 100, concurrency_level: int = 10,
-                max_tokens: int = 100, prompt: str = ''):
-       self.total_requests = total_requests
-       self.concurrency_level = concurrency_level
-       self.max_tokens = max_tokens
-       self.prompt = prompt
+    async def wait_for_nim_ready(self, nim_id: str, timeout: int = 60) -> bool:
+        """Wait for the NIM container to become ready by checking its status."""
+        start_time = datetime.now()
 
-@router.post("/benchmark")
-async def create_benchmark(config: Dict[str, Any], db: Session = Depends(get_db)):
-   try:
-       logger.info(f"Received benchmark config: {config}")
-       nim_id = config.pop('nim_id', None)
-       
-       if not nim_id:
-           raise HTTPException(status_code=400, detail="NIM ID is required")
-           
-       nim = next((n for n in container_manager.list_containers() 
-                  if n['container_id'] == nim_id), None)
-       logger.info(f"Found NIM for benchmark: {nim}")
-       
-       if not nim:
-           raise HTTPException(status_code=404, detail="Selected NIM not found")
+        while (datetime.now() - start_time).seconds < timeout:
+            nim_info = container_manager.load_nim()
 
-       benchmark_config = BenchmarkConfig(
-           total_requests=config.get('total_requests', 100),
-           concurrency_level=config.get('concurrency_level', 10),
-           max_tokens=config.get('max_tokens', 100),
-           prompt=config.get('prompt', '')
-       )
+            if not nim_info or nim_info["container_id"] != nim_id:
+                logger.warning(f"NIM container {nim_id} not found or inactive.")
+                return False
 
-       run = BenchmarkRun(
-           model_name=nim['image_name'],
-           config=json.dumps(config),
-           status="running",
-           nim_id=nim_id
-       )
-       db.add(run)
-       db.commit()
-       db.refresh(run)
-       
-       logger.info(f"Created benchmark run: {run.id}")
-       asyncio.create_task(execute_benchmark(run.id, nim, benchmark_config))
-       return {"run_id": run.id}
+            if nim_info.get("status") == "ready":
+                logger.info(f"NIM container {nim_id} is ready.")
+                return True
 
-   except Exception as e:
-       logger.error(f"Failed to start benchmark: {e}")
-       raise HTTPException(status_code=500, detail=str(e))
+            logger.debug(f"Waiting for NIM {nim_id} to be ready... ({timeout - (datetime.now() - start_time).seconds}s remaining)")
+            await asyncio.sleep(1)
 
-async def execute_benchmark(run_id: int, nim: Dict[str, Any], config: BenchmarkConfig):
-   try:
-       logger.info(f"Starting benchmark execution for run {run_id}")
-       # Implement actual benchmark execution logic here
-       
-   except Exception as e:
-       logger.error(f"Benchmark execution failed: {e}")
+        logger.error(f"Timeout waiting for NIM container {nim_id} to be ready.")
+        return False
 
-@router.get("/benchmark/history")
-def get_benchmark_history(db: Session = Depends(get_db)):
-   try:
-       runs = db.query(BenchmarkRun).order_by(BenchmarkRun.start_time.desc()).all()
-       return [format_benchmark_run(run) for run in runs]
-   except Exception as e:
-       logger.error(f"Failed to get benchmark history: {e}")
-       raise HTTPException(status_code=500, detail=str(e))
+    async def execute_nim_benchmark(self, config: Dict[str, Any], container_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute benchmark against NIM container."""
+        try:
+            port = container_info['port']
+            model_info = container_info['model_info']
+            logger.info(f"Starting benchmark against {model_info['full_name']} on port {port}")
 
-def format_benchmark_run(run: BenchmarkRun):
-   return {
-       "id": run.id,
-       "model_name": run.model_name,
-       "status": run.status,
-       "start_time": run.start_time.isoformat(),
-       "end_time": run.end_time.isoformat() if run.end_time else None,
-       "metrics": {
-           "average_tps": run.average_tps,
-           "peak_tps": run.peak_tps,
-           "p95_latency": run.p95_latency
-       }
-   }
+            success_count = 0
+            total_tokens = 0
+            total_latency = 0
+            latencies = []
+            start_time = datetime.now()
 
+            async with aiohttp.ClientSession() as session:
+                tasks = []
+                semaphore = asyncio.Semaphore(config['concurrency_level'])
+
+                async def make_request():
+                    nonlocal success_count, total_tokens, total_latency
+                    async with semaphore:
+                        try:
+                            req_start = datetime.now()
+                            async with session.post(
+                                f"http://localhost:8000/v1/completions",
+                                json={
+                                    "model": model_info['full_name'],
+                                    "prompt": config['prompt'],
+                                    "max_tokens": config.get('max_tokens', 50),
+                                    "stream": False
+                                }
+                            ) as response:
+                                if response.status != 200:
+                                    logger.error(f"Request failed with status {response.status}")
+                                    return
+
+                                data = await response.json()
+                                latency = (datetime.now() - req_start).total_seconds()
+                                tokens = len(data.get("choices", [{}])[0].get("text", "").split())
+
+                                success_count += 1
+                                total_tokens += tokens
+                                total_latency += latency
+                                latencies.append(latency)
+
+                                # Update real-time metrics
+                                elapsed = (datetime.now() - start_time).total_seconds()
+                                self.current_benchmark_metrics = {
+                                    "tokens_per_second": total_tokens / elapsed if elapsed > 0 else 0,
+                                    "latency": sum(latencies) / len(latencies) if latencies else 0,
+                                    "timestamp": datetime.now().isoformat(),
+                                    "completed_requests": success_count,
+                                    "total_requests": config['total_requests']
+                                }
+
+                        except Exception as e:
+                            logger.error(f"Request error: {str(e)}")
+
+                # Create and run concurrent requests
+                tasks = [make_request() for _ in range(config['total_requests'])]
+                await asyncio.gather(*tasks)
+
+            if not latencies:
+                raise Exception("No successful requests completed")
+
+            # Calculate final metrics
+            metrics = {
+                "tokens_per_second": total_tokens / total_latency if total_latency > 0 else 0,
+                "latency": sum(latencies) / len(latencies),
+                "p95_latency": sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0,
+                "time_to_first_token": min(latencies) if latencies else 0,
+                "inter_token_latency": (max(latencies) - min(latencies)) / len(latencies) if len(latencies) > 1 else 0,
+                "gpu_metrics": container_info.get('gpu_metrics', []),
+                "total_tokens": total_tokens,
+                "successful_requests": success_count,
+                "failed_requests": config['total_requests'] - success_count,
+                "model_name": model_info['full_name'],
+                "historical": [{
+                    "timestamp": datetime.now().isoformat(),
+                    "tokens_per_second": total_tokens / total_latency if total_latency > 0 else 0,
+                    "latency": l
+                } for l in latencies]
+            }
+
+            logger.info(f"Benchmark complete: {success_count}/{config['total_requests']} requests successful")
+            return metrics
+
+        except Exception as e:
+            logger.error(f"Benchmark execution error: {str(e)}")
+            raise
+
+    async def create_benchmark(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Create and run a new benchmark."""
+        container_info = None
+        try:
+            # Start NIM container
+            container_info = await container_manager.start_container(
+                config['nim_id'], 
+                config.get('gpu_count', 1)
+            )
+            if not container_info:
+                raise Exception("Failed to start NIM container")
+
+            # Wait for API to be ready
+            if not await self.wait_for_nim_ready(container_info['container_id']):
+                raise RuntimeError("NIM container did not become ready")
+
+            # Run benchmark
+            metrics = await self.execute_nim_benchmark(config, container_info)
+
+            # Prepare and save results
+            run_id = len(self.get_benchmark_history()) + 1
+            run_data = {
+                "id": run_id,
+                "name": config['name'],
+                "model_name": metrics['model_name'],
+                "status": "completed",
+                "start_time": datetime.utcnow().isoformat(),
+                "end_time": datetime.utcnow().isoformat(),
+                "config": config,
+                "metrics": metrics
+            }
+
+            # Save benchmark results
+            benchmark_file = self.benchmark_dir / f"benchmark_{run_id}.json"
+            with open(benchmark_file, "w") as f:
+                json.dump(run_data, f, indent=2)
+
+            logger.info(f"Benchmark results saved to {benchmark_file}")
+            return run_data
+
+        except Exception as e:
+            logger.error(f"Benchmark creation error: {str(e)}")
+            raise
+        finally:
+            if container_info:
+                try:
+                    await container_manager.stop_container(container_info['container_id'])
+                except Exception as e:
+                    logger.error(f"Error stopping container: {str(e)}")
+
+    def get_benchmark_history(self) -> List[Dict[str, Any]]:
+        """Retrieve benchmark history."""
+        try:
+            history = []
+            for file_path in self.benchmark_dir.glob("benchmark_*.json"):
+                try:
+                    with open(file_path, "r") as f:
+                        history.append(json.load(f))
+                except json.JSONDecodeError:
+                    logger.error(f"Error reading benchmark file: {file_path}")
+                    continue
+            return sorted(history, key=lambda x: x["id"], reverse=True)
+        except Exception as e:
+            logger.error(f"Error reading benchmark history: {e}")
+            return []
+
+benchmark_service = BenchmarkService()
+
+# Export the instance
+__all__ = ['benchmark_service']

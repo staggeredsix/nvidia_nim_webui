@@ -1,4 +1,4 @@
-# app/models/benchmark_telemetry.py
+# File: app/models/benchmark_telemetry.py
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -25,23 +25,11 @@ class BenchmarkRun:
         self.end_time = None
         
         # Performance metrics
-        self.total_requests = 0
-        self.successful_requests = 0
-        self.failed_requests = 0
         self.total_tokens = 0
+        self.tokens_per_second = 0.0
+        self.latency = 0.0
+        self.gpu_utilization = 0.0
         
-        self.average_tps = 0.0
-        self.peak_tps = 0.0
-        self.p95_latency = 0.0
-        self.time_to_first_token = 0.0
-        self.inter_token_latency = 0.0
-        
-        self.average_gpu_utilization = 0.0
-        self.peak_gpu_utilization = 0.0
-        self.average_gpu_memory = 0.0
-        self.peak_gpu_memory = 0.0
-        self.gpu_power_draw = 0.0
-
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -54,20 +42,10 @@ class BenchmarkRun:
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "metrics": {
-                "total_requests": self.total_requests,
-                "successful_requests": self.successful_requests,
-                "failed_requests": self.failed_requests,
                 "total_tokens": self.total_tokens,
-                "average_tps": self.average_tps,
-                "peak_tps": self.peak_tps,
-                "p95_latency": self.p95_latency,
-                "time_to_first_token": self.time_to_first_token,
-                "inter_token_latency": self.inter_token_latency,
-                "average_gpu_utilization": self.average_gpu_utilization,
-                "peak_gpu_utilization": self.peak_gpu_utilization,
-                "average_gpu_memory": self.average_gpu_memory,
-                "peak_gpu_memory": self.peak_gpu_memory,
-                "gpu_power_draw": self.gpu_power_draw
+                "tokens_per_second": self.tokens_per_second,
+                "latency": self.latency,
+                "gpu_utilization": self.gpu_utilization,
             }
         }
 

@@ -1,10 +1,7 @@
+// src/routes/Home.tsx
 import React, { useState, useEffect } from 'react';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from 'recharts';
-import {
-  AlertCircle,
-} from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { AlertCircle } from 'lucide-react';
 import useWebSocket from '@/hooks/useWebSocket';
 import { fetchBenchmarkHistory } from "../services/api";
 
@@ -15,8 +12,12 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (metrics?.gpu_stats) {
-      setGpuData(metrics.gpu_stats);
+    if (metrics?.gpu_metrics) {
+      setGpuData(metrics.gpu_metrics.map((metric, index) => ({
+        name: `GPU ${index}`,
+        utilization: metric.gpu_utilization,
+        power: metric.power_draw
+      })));
     }
   }, [metrics]);
 
@@ -47,39 +48,38 @@ const Home = () => {
       <div className="card">
         <h2 className="text-xl font-bold mb-4">System Metrics</h2>
         {metrics ? (
-          <div>
-            <p>Tokens Per Second: {metrics.tokens_per_second || 0}</p>
-            <p>GPU Utilization: {metrics.gpu_utilization || 0}%</p>
-            <p>Power Efficiency: {metrics.power_efficiency || 0}</p>
-            <p>GPU Memory: {metrics.gpu_memory || 0} MB</p>
-            <p>GPU Temperature: {metrics.gpu_temp || 0}°C</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {metrics.gpu_metrics.map((gpu, index) => (
+              <div key={index} className="p-4 bg-gray-800 rounded-lg">
+                <h3 className="text-sm font-medium mb-2">GPU {index}</h3>
+                <p>Utilization: {gpu.gpu_utilization}%</p>
+                <p>Memory: {(gpu.gpu_memory_used / 1024).toFixed(1)}GB</p>
+                <p>Temperature: {gpu.gpu_temp}°C</p>
+                <p>Power: {gpu.power_draw}W</p>
+              </div>
+            ))}
           </div>
         ) : (
-          <p>Metrics are currently unavailable.</p>
+          <p>Metrics are currently unavailable or loading, please wait...</p>
         )}
       </div>
 
-      <div className="card">
-        <h2 className="text-xl font-bold mb-4">GPU Statistics</h2>
-        {gpuData.length > 0 ? (
+      {gpuData.length > 0 && (
+        <div className="card">
+          <h2 className="text-xl font-bold mb-4">GPU Performance</h2>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart
-              data={gpuData}
-              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-            >
+            <LineChart data={gpuData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="avgTps" stroke="#8884d8" />
-              <Line type="monotone" dataKey="powerEfficiency" stroke="#82ca9d" />
+              <Line type="monotone" dataKey="utilization" stroke="#8884d8" name="Utilization %" />
+              <Line type="monotone" dataKey="power" stroke="#82ca9d" name="Power (W)" />
             </LineChart>
           </ResponsiveContainer>
-        ) : (
-          <p>No GPU statistics available.</p>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="card">
         <h2 className="text-xl font-bold mb-4">Recent Benchmarks</h2>
