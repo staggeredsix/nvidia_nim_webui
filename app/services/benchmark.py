@@ -47,23 +47,24 @@ class BenchmarkService:
             total_latency = 0
             latencies = []
             start_time = datetime.now()
+            peak_tps = 0
+            gpu_metrics_history = []
 
             async with aiohttp.ClientSession() as session:
                 tasks = []
                 semaphore = asyncio.Semaphore(config['concurrency_level'])
 
                 async def make_request():
-                    nonlocal success_count, total_tokens, total_latency
+                    nonlocal success_count, total_tokens, total_latency, peak_tps
                     async with semaphore:
                         try:
                             req_start = datetime.now()
                             async with session.post(
-                                f"http://localhost:8000/v1/completions",
+                                f"http://localhost:{port}/v1/completions",
                                 json={
                                     "model": model_info['full_name'],
                                     "prompt": config['prompt'],
-                                    "max_tokens": config.get('max_tokens', 50),
-                                    "stream": False
+                                    "max_tokens": config.get('max_tokens', 50)
                                 }
                             ) as response:
                                 if response.status != 200:
@@ -79,20 +80,23 @@ class BenchmarkService:
                                 total_latency += latency
                                 latencies.append(latency)
 
-                                # Update real-time metrics
+                                # Calculate current metrics
                                 elapsed = (datetime.now() - start_time).total_seconds()
-                                self.current_benchmark_metrics = {
-                                    "tokens_per_second": total_tokens / elapsed if elapsed > 0 else 0,
-                                    "latency": sum(latencies) / len(latencies) if latencies else 0,
+                                current_tps = total_tokens / elapsed if elapsed > 0 else 0
+                                peak_tps = max(peak_tps, current_tps)
+
+                                metrics = {
+                                    "tokens_per_second": current_tps,
+                                    "latency": sum(latencies) / len(latencies),
                                     "timestamp": datetime.now().isoformat(),
                                     "completed_requests": success_count,
                                     "total_requests": config['total_requests']
                                 }
+                                gpu_metrics_history.append(metrics)
 
                         except Exception as e:
                             logger.error(f"Request error: {str(e)}")
 
-                # Create and run concurrent requests
                 tasks = [make_request() for _ in range(config['total_requests'])]
                 await asyncio.gather(*tasks)
 
@@ -102,6 +106,7 @@ class BenchmarkService:
             # Calculate final metrics
             metrics = {
                 "tokens_per_second": total_tokens / total_latency if total_latency > 0 else 0,
+                "peak_tps": peak_tps,
                 "latency": sum(latencies) / len(latencies),
                 "p95_latency": sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0,
                 "time_to_first_token": min(latencies) if latencies else 0,
@@ -111,11 +116,7 @@ class BenchmarkService:
                 "successful_requests": success_count,
                 "failed_requests": config['total_requests'] - success_count,
                 "model_name": model_info['full_name'],
-                "historical": [{
-                    "timestamp": datetime.now().isoformat(),
-                    "tokens_per_second": total_tokens / total_latency if total_latency > 0 else 0,
-                    "latency": l
-                } for l in latencies]
+                "historical": gpu_metrics_history
             }
 
             logger.info(f"Benchmark complete: {success_count}/{config['total_requests']} requests successful")

@@ -5,10 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.websockets import WebSocketState
 from pathlib import Path
 import asyncio
-from datetime import datetime
 
 from .api.routes import api_router
-from .utils.metrics import collect_metrics
+from .utils.metrics import collect_metrics, metrics_collector
 from .utils.connection import ConnectionManager
 from .utils.logger import logger
 from .services.benchmark_progress import ProgressTracker
@@ -44,51 +43,22 @@ async def add_logging(request: Request, call_next):
     return response
 
 
-# WebSocket endpoint for metrics
-@app.websocket("/metrics")
+# Updated WebSocket endpoint in main.py
+@app.websocket("/ws/metrics")
 async def metrics_websocket(websocket: WebSocket):
-    await websocket.accept()
+    await connection_manager.connect(websocket)
     try:
-        await connection_manager.connect(websocket)
         while True:
-            try:
-                if websocket.client_state == WebSocketState.DISCONNECTED:
-                    logger.info("WebSocket client disconnected")
-                    break
-
-                metrics = collect_metrics()
-                await websocket.send_json({
-                    "type": "metrics_update",
-                    "metrics": metrics or {
-                        "tokens_per_second": 0,
-                        "gpu_utilization": 0,
-                        "power_efficiency": 0,
-                        "gpu_memory": 0,
-                        "gpu_temp": 0,
-                        "timestamp": str(datetime.utcnow()),
-                        "requests_per_second": 0,
-                        "latency": 0,
-                        "memory_used": 0,
-                        "memory_total": 0
-                    }
-                })
-                await asyncio.sleep(2)
-
-            except WebSocketDisconnect:
-                logger.info("WebSocket client disconnected gracefully")
-                break
-            except Exception as e:
-                logger.error(f"WebSocket error: {str(e)}")
-                break
-
+            metrics = metrics_collector.collect_metrics()
+            await websocket.send_json({
+                "type": "metrics_update",
+                "metrics": metrics
+            })
+            await asyncio.sleep(1)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
     finally:
         await connection_manager.disconnect(websocket)
-        try:
-            if websocket.client_state != WebSocketState.DISCONNECTED:
-                await websocket.close()
-                logger.info("WebSocket connection closed")
-        except Exception as e:
-            logger.error(f"Error closing WebSocket: {e}")
 
 # WebSocket endpoint for benchmark progress
 @app.websocket("/ws/benchmark")

@@ -32,7 +32,7 @@ export interface ContainerInfo {
 }
 
 export interface BenchmarkMetrics {
-  average_tps: number;
+  tokens_per_second: number;
   peak_tps: number;
   p95_latency: number;
   time_to_first_token: number;
@@ -50,13 +50,11 @@ export interface BenchmarkMetrics {
 export interface BenchmarkRun {
   id: number;
   name: string;
-  description?: string;
   model_name: string;
   status: string;
   start_time: string;
   end_time?: string;
-  config: any;
-  metrics?: BenchmarkMetrics;
+  metrics: BenchmarkMetrics;
 }
 
 // API Functions

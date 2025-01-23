@@ -1,204 +1,141 @@
-# NIM Benchmark Tool Programming Guide
+# NIM Benchmark System
 
-## Project Structure
-```
-├── app/
-│   ├── api/                 # FastAPI routes and endpoints
-│   ├── services/           # Business logic
-│   └── utils/             # Utility functions
-├── frontend/
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── hooks/        # Custom React hooks
-│   │   ├── routes/       # Page components
-│   │   ├── services/     # API clients
-│   │   └── types/       # TypeScript type definitions
-└── requirements.txt      # Python dependencies
+**⚠️ WARNING: This software is currently under development and is released for testing and debugging purposes only. Use at your own risk.**
 
-## Key Components
+## Overview
+NIM Benchmark System is a tool designed to benchmark NVIDIA Inference Microservices (NIMs). It provides a web interface for managing NIMs, running benchmarks, and analyzing performance metrics.
 
-### Backend (Python/FastAPI)
+## Prerequisites
+- Python 3.10 or higher
+- Node.js 16.x or higher
+- Docker with NVIDIA Container Toolkit
+- NVIDIA GPU with appropriate drivers
+- NGC API Key
 
-1. `benchmark_service.py`: Manages benchmark execution
-   - Handles NIM container lifecycle
-   - Executes benchmarks
-   - Records metrics
+## Dependencies
 
-2. `metrics.py`: GPU metrics collection
-   - Real-time GPU monitoring
-   - System metrics tracking
-   - Historical data collection
+### Backend Dependencies
+```bash
+# Core dependencies
+aiohttp>=3.8.0
+fastapi>=0.68.0
+uvicorn>=0.15.0
+pydantic>=1.8.0
+python-dotenv>=0.19.0
+sqlalchemy>=1.4.0
+websockets>=10.0.0
+prometheus-client>=0.12.0
+docker>=6.1.0
+cryptography>=41.0.0
 
-3. `container.py`: NIM container management
-   - Container lifecycle (start/stop)
-   - Health checks
-   - Port management
+# Testing
+pytest>=6.0.0
+pytest-asyncio>=0.16.0
+pytest-cov>=2.0.0
 
-### Frontend (React/TypeScript)
+# Development
+black>=22.3.0
+isort>=5.9.3
+mypy>=0.910
 
-1. `TelemetryComponents.tsx`: Real-time metrics display
-   - GPU utilization
-   - Memory usage
-   - Power consumption
-
-2. `BenchmarkHistory.tsx`: Historical data viewing
-   - Past benchmark results
-   - Performance metrics
-   - Export functionality
-
-## Common Tasks
-
-### Adding New Metrics
-
-1. Update `metrics.py`:
-```python
-def get_gpu_metrics(self, gpu_index: int) -> Dict:
-    # Add new metric to collection
+# Database
+aiosqlite>=0.17.0
+alembic>=1.7.0
 ```
 
-2. Update TypeScript types in `types/metrics.ts`:
-```typescript
-interface MetricsData {
-    // Add new metric type
+### Frontend Dependencies
+```json
+{
+  "dependencies": {
+    "axios": "^1.7.9",
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.28.1",
+    "recharts": "^2.1.10"
+  }
 }
 ```
 
-3. Update display component in `TelemetryComponents.tsx`
+## Installation
 
-### Adding New Features
-
-1. Backend Route:
-   - Add endpoint in appropriate file under `app/api/`
-   - Implement service logic in `app/services/`
-
-2. Frontend Integration:
-   - Add API client method in `services/api.ts`
-   - Create/update React component
-   - Add to relevant route
-
-## Known Issues & Fixes
-
-1. WebSocket Connection:
-   - Use dynamic hostname
-   - Implement reconnection logic
-   - Add error handling
-
-2. Metrics Collection:
-   - Ensure consistent units (MB vs GB)
-   - Add proper error handling
-   - Implement retry logic
-
-3. Container Management:
-   - Add timeout handling
-   - Implement health checks
-   - Add cleanup logic
-
-## Testing
-
-1. Backend:
+1. Clone the repository:
 ```bash
-pytest tests/
+git clone <repository-url>
+cd nim-benchmark
 ```
 
-2. Frontend:
+2. Set up the backend:
 ```bash
-npm test
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-## Common Errors
-
-1. "model_name not found":
-   - Check container_info structure
-   - Verify NIM container status
-
-2. WebSocket disconnections:
-   - Check network connectivity
-   - Verify port accessibility
-   - Check server logs
-
-3. Missing metrics:
-   - Verify nvidia-smi access
-   - Check GPU permissions
-   - Verify CUDA installation
-
-
-
-
-
-
-# Bug Fixes
-
-## Critical Fixes
-
-1. WebSocket Connection:
-```typescript
-const WS_BASE = `ws://${window.location.hostname}:7000`;
-const ws = new WebSocket(`${WS_BASE}/ws/metrics`);
+3. Set up the frontend:
+```bash
+cd frontend
+npm install
 ```
 
-2. Metrics Collection:
-```python
-# Fix nvidia-smi command
-result = subprocess.run([
-    'nvidia-smi',
-    f'--id={gpu_index}',
-    '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw',
-    '--format=csv,nounits'
-], capture_output=True, text=True, timeout=5)
+## Configuration
+
+1. Set up your NGC API key:
+   - Obtain an NGC API key from the NVIDIA NGC website
+   - Use the settings page in the UI to add your key
+
+2. Environment variables (create `.env` in backend directory):
+```env
+DATABASE_URL=sqlite:///benchmarks.db
+PORT=8000
 ```
 
-3. Container Port:
-```python
-# Use container_info port instead of hardcoded
-port = container_info['port']
-endpoint = f"http://localhost:{port}/v1/completions"
+## Usage
+
+1. Start the backend server:
+```bash
+cd backend
+./start_server.sh
 ```
 
-## Performance Improvements
-
-1. Frontend State Management:
-```typescript
-useEffect(() => {
-    if (metrics?.gpu_metrics) {
-        setGpuData(metrics.gpu_metrics.map((metric, index) => ({
-            name: `GPU ${index}`,
-            utilization: metric.gpu_utilization,
-            power: metric.power_draw
-        })));
-    }
-}, [metrics?.gpu_metrics]); // Only update when GPU metrics change
+2. Start the frontend development server:
+```bash
+cd frontend
+npm run dev
 ```
 
-2. Backend Memory Usage:
-```python
-# Limit historical metrics storage
-if len(self.historical_metrics) > 100:
-    self.historical_metrics = self.historical_metrics[-100:]
-```
+3. Access the application at `http://localhost:3000`
 
-## Error Handling
+## Features
+- NIM container management
+- NGC key management
+- Real-time benchmark metrics
+- Performance visualization
+- Historical benchmark data
+- GPU metrics tracking
 
-1. Container State:
-```python
-if not container_info:
-    raise Exception("Failed to start NIM container")
-```
+## Known Issues
+- Real-time metrics occasionally disconnect
+- Memory usage reporting needs optimization
+- Some UI elements need polish
 
-2. WebSocket Reconnection:
-```typescript
-const reconnectTimeoutRef = useRef<number>();
-// Exponential backoff retry
-if (retryCount < MAX_RETRIES) {
-    reconnectTimeoutRef.current = window.setTimeout(() => {
-        connect();
-    }, RETRY_DELAY * Math.pow(2, retryCount));
-}
-```
+## Development Status
+This project is in active development. Current focuses:
+- Improving error handling
+- Adding more comprehensive metrics
+- Enhancing UI/UX
+- Adding multi-GPU support
+- Implementing batch testing features
 
+## Contributing
+This project is currently in testing phase. Issue reports and debug information are welcome.
 
-KNOWN ISSUES:
+## License
+This project is proprietary software. All rights reserved.
 
-GPU Metrics collection is broken.
-UI/UX Metrics... also broken.
-Weird unused Select a NIM dropdown on the benchmark page.
-Important metrics are okay.
+## Support
+For bug reports and feature requests, please use the issue tracker.
+
+## Disclaimer
+This software is provided "as is", without warranty of any kind. In no event shall the authors be liable for any claim, damages or other liability arising from the use of the software.

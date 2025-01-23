@@ -8,24 +8,23 @@ import { getNims } from "@/services/api";
 import { MetricsData } from "@/types/metrics";
 
 const defaultMetrics: MetricsData = {
+  gpu_count: 0,
+  gpu_metrics: [],
   cpu_usage: 0,
   memory_used: 0,
   memory_total: 0,
-  gpu_utilization: 0,
-  gpu_memory_used: 0,
-  gpu_memory_total: 0,
+  timestamp: 0,
   pcie_throughput: null,
   uptime: 0,
-  gpu_temp: 0,
-  gpu_memory: 0,
-  power_efficiency: 0,
-  gpu_metrics: [],
-  gpu_stats: [],
-  benchmark_counts: {},
-  timestamp: Date.now(),
-  ip_address: 'Unknown',
-  gpu_count: 0,
-  tokens_per_watt: 0
+  tokens_per_second: 0,
+  peak_tps: 0,
+  avg_gpu_utilization: 0,
+  peak_gpu_util: 0,
+  avg_gpu_memory: 0,
+  peak_gpu_mem: 0,
+  power_draw: 0,
+  tokens_per_watt: 0,
+  historical_metrics: []
 };
 
 const Benchmarks = () => {
@@ -65,19 +64,8 @@ const Benchmarks = () => {
       )}
 
       <div className="card bg-gray-800 rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">Select NIM</h2>
-        <select
-          value={selectedNim}
-          onChange={(e) => setSelectedNim(e.target.value)}
-          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2"
-        >
-          <option value="">Select a NIM...</option>
-          {installedNims.map((nim: any) => (
-            <option key={nim.container_id} value={nim.container_id}>
-              {nim.image_name} {nim.status === 'running' && `(Port: ${nim.port})`}
-            </option>
-          ))}
-        </select>
+        <h2 className="text-xl font-bold mb-4">Run a Benchmark</h2>
+        
       </div>
 
       <TestControls isLoading={isLoading} />

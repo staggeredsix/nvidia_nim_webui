@@ -1,14 +1,22 @@
-// src/routes/Home.tsx
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { AlertCircle } from 'lucide-react';
 import useWebSocket from '@/hooks/useWebSocket';
-import { fetchBenchmarkHistory } from "../services/api";
+import { fetchBenchmarkHistory } from "@/services/api";
+import type { BenchmarkRun } from "@/services/api";
+const WS_BASE = `ws://${window.location.hostname}:7000`;
 
-const Home = () => {
-  const [gpuData, setGpuData] = useState([]);
-  const { metrics, error: wsError } = useWebSocket('ws://localhost:8000/metrics');
-  const [history, setHistory] = useState([]);
+
+interface GpuData {
+  name: string;
+  utilization: number;
+  power: number;
+}
+
+const Home: React.FC = () => {
+  const [gpuData, setGpuData] = useState<GpuData[]>([]);
+  const { metrics, error: wsError, isConnected } = useWebSocket(`${WS_BASE}/ws/metrics`);
+  const [history, setHistory] = useState<BenchmarkRun[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +31,8 @@ const Home = () => {
 
   useEffect(() => {
     fetchHistoricalData();
+    const interval = setInterval(fetchHistoricalData, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
   }, []);
 
   const fetchHistoricalData = async () => {
@@ -35,6 +45,15 @@ const Home = () => {
       setLoading(false);
     }
   };
+
+  if (!isConnected) {
+    return (
+      <div className="bg-yellow-900/50 border border-yellow-500 rounded-lg p-4 flex items-center">
+        <AlertCircle className="w-5 h-5 text-yellow-500 mr-2" />
+        <span>Connecting to metrics service...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -52,15 +71,15 @@ const Home = () => {
             {metrics.gpu_metrics.map((gpu, index) => (
               <div key={index} className="p-4 bg-gray-800 rounded-lg">
                 <h3 className="text-sm font-medium mb-2">GPU {index}</h3>
-                <p>Utilization: {gpu.gpu_utilization}%</p>
-                <p>Memory: {(gpu.gpu_memory_used / 1024).toFixed(1)}GB</p>
-                <p>Temperature: {gpu.gpu_temp}°C</p>
-                <p>Power: {gpu.power_draw}W</p>
+                <p>Utilization: {gpu.gpu_utilization.toFixed(1)}%</p>
+                <p>Memory: {(gpu.gpu_memory_used).toFixed(1)}GB</p>
+                <p>Temperature: {gpu.gpu_temp.toFixed(0)}°C</p>
+                <p>Power: {gpu.power_draw.toFixed(1)}W</p>
               </div>
             ))}
           </div>
         ) : (
-          <p>Metrics are currently unavailable or loading, please wait...</p>
+          <p>No metrics available</p>
         )}
       </div>
 
