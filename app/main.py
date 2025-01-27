@@ -54,7 +54,7 @@ async def metrics_websocket(websocket: WebSocket):
                 "type": "metrics_update",
                 "metrics": metrics
             })
-            await asyncio.sleep(1)
+            await asyncio.sleep(.25)
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:
@@ -82,7 +82,7 @@ async def benchmark_progress_ws(websocket: WebSocket):
                         }
                     })
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(.25)
 
     except WebSocketDisconnect:
         logger.info("Benchmark WebSocket client disconnected gracefully")

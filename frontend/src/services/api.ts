@@ -1,20 +1,13 @@
 // src/services/api.ts
 import axios from "axios";
+import type { BenchmarkRun as BenchmarkRunType, BenchmarkConfig as BenchmarkConfigType } from '../types/benchmark';
 
 const BASE_URL = `http://${window.location.hostname}:7000`;
 const WS_BASE = `ws://${window.location.hostname}:7000`;
-console.log("API Base URL:", BASE_URL);
-// Interfaces
-export interface BenchmarkConfig {
-  total_requests: number;
-  concurrency_level: number;
-  max_tokens?: number;
-  prompt: string;
-  name: string;
-  description?: string;
-  nim_id: string;
-  gpu_count?: number;
-}
+
+// Re-export types
+export type BenchmarkRun = BenchmarkRunType;
+export type BenchmarkConfig = BenchmarkConfigType;
 
 export interface ContainerInfo {
   container_id: string;
@@ -47,16 +40,6 @@ export interface BenchmarkMetrics {
   failed_requests: number;
 }
 
-export interface BenchmarkRun {
-  id: number;
-  name: string;
-  model_name: string;
-  status: string;
-  start_time: string;
-  end_time?: string;
-  metrics: BenchmarkMetrics;
-}
-
 // API Functions
 export const startBenchmark = async (config: BenchmarkConfig) => {
   console.log("Sending benchmark request:", config);
@@ -73,13 +56,8 @@ export const startBenchmark = async (config: BenchmarkConfig) => {
 };
 
 export const fetchBenchmarkHistory = async (): Promise<BenchmarkRun[]> => {
-  try {
-    const response = await axios.get(`${BASE_URL}/api/benchmark/history`);
-    return response.data;
-  } catch (error) {
-    console.error("Failed to fetch benchmark history:", error);
-    throw error;
-  }
+  const response = await axios.get(`${BASE_URL}/api/benchmark/history`);
+  return response.data;
 };
 
 export const saveNgcKey = async (key: string): Promise<void> => {

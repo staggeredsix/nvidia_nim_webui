@@ -1,43 +1,25 @@
+// src/components/BenchmarkHistory.tsx
 import React, { useState, useEffect } from "react";
 import { Download, ChevronDown, ChevronRight } from "lucide-react";
-import { fetchBenchmarkHistory, type BenchmarkRun } from "@/services/api";
+import { fetchBenchmarkHistory } from "@/services/api";
 import { formatNumber } from "@/utils/format";
-
-interface Metrics {
-  tokens_per_second: number;
-  peak_tps: number;
-  p95_latency: number;
-  time_to_first_token: number;
-  inter_token_latency: number;
-  average_gpu_utilization: number;
-  peak_gpu_utilization: number;
-  average_gpu_memory: number;
-  peak_gpu_memory: number;
-  gpu_power_draw: number;
-  total_tokens: number;
-  successful_requests: number;
-  failed_requests: number;
-}
-
-interface Run extends BenchmarkRun {
-  metrics: BenchmarkRun['metrics'];
-}
+import type { BenchmarkRun } from "@/types/benchmark";
 
 const BenchmarkHistory = () => {
-  const [history, setHistory] = useState<BenchmarkRun[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [history, setHistory] = useState<BenchmarkRun[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchHistory();
+    loadHistory();
   }, []);
 
-  const fetchHistory = async () => {
+  const loadHistory = async () => {
     try {
-      const response = await fetchBenchmarkHistory();
-      setHistory(response);
+      const data = await fetchBenchmarkHistory();
+      setHistory(data);
     } catch (error) {
-      console.error("Error fetching history:", error);
+      console.error("Failed to load benchmark history:", error);
     } finally {
       setLoading(false);
     }
@@ -55,8 +37,33 @@ const BenchmarkHistory = () => {
     });
   };
 
+  const exportResults = async (run: BenchmarkRun) => {
+    const benchmarkData = {
+      id: run.id,
+      name: run.name,
+      model_name: run.model_name,
+      status: run.status,
+      start_time: run.start_time,
+      end_time: run.end_time,
+      metrics: run.metrics,
+    };
+
+    const blob = new Blob([JSON.stringify(benchmarkData, null, 2)], {
+      type: "application/json",
+    });
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `benchmark_${run.name.replace(/[^a-zA-Z0-9_-]/g, "_")}_${run.id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
   if (loading) {
-    return <div className="text-center text-gray-400 p-4">Loading benchmark history...</div>;
+    return <div>Loading benchmark history...</div>;
   }
 
   return (
@@ -98,15 +105,25 @@ const BenchmarkHistory = () => {
                   </td>
                   <td className="p-2">{new Date(run.start_time).toLocaleString()}</td>
                   <td className="p-2">
-                    {run.end_time ? (
-                      `${Math.round((new Date(run.end_time).getTime() - new Date(run.start_time).getTime()) / 1000)}s`
-                    ) : '-'}
+                    {run.end_time ? 
+                      Math.round((new Date(run.end_time).getTime() - new Date(run.start_time).getTime()) / 1000) + 's'
+                      : '-'
+                    }
                   </td>
                   <td className="p-2">
                     {formatNumber(run.metrics?.tokens_per_second || 0)} t/s
                   </td>
-                  <td className="p-2">
-                    <Download className="w-4 h-4 text-blue-400 hover:text-blue-300" />
+                  <td>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        exportResults(run);
+                      }}
+                      className="text-blue-400 hover:text-blue-300 flex items-center"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Export
+                    </button>
                   </td>
                 </tr>
                 {expandedRows.has(run.id) && (

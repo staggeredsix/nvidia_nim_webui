@@ -14,6 +14,7 @@ from app.services.benchmark import benchmark_service
 from app.services.container import container_manager
 from app.utils.connection import connection_manager
 from app.utils.metrics import metrics_collector
+from .endpoints.metrics_endpoint import router as metrics_router
 
 limiter = Limiter(key_func=get_remote_address)
 api_router = APIRouter()
@@ -22,7 +23,7 @@ api_router.include_router(benchmark_router, prefix="/benchmark", tags=["benchmar
 api_router.include_router(nim_router, prefix="/nims", tags=["nim"])
 api_router.include_router(ngc_router, prefix="/ngc-key", tags=["ngc"])
 api_router.include_router(logs_router, prefix="/logs", tags=["logs"])
-
+api_router.include_router(metrics_router, prefix="/metrics", tags=["metrics"])
 
 
 @api_router.websocket("/metrics")

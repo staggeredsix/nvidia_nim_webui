@@ -12,7 +12,8 @@ const BenchmarkConfiguration = () => {
     concurrency_level: 10,
     max_tokens: 50,
     nim_id: '',
-    gpu_count: 1
+    gpu_count: 1,
+    stream: true
   });
   const [nims, setNims] = useState([]);
   const [error, setError] = useState('');
@@ -27,7 +28,6 @@ const BenchmarkConfiguration = () => {
     try {
       const config: BenchmarkConfig = {
         ...formData,
-        // description: ''
       };
       await startBenchmark(config);
     } catch (err) {

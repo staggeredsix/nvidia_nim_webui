@@ -1,3 +1,4 @@
+# app/utils/metrics.py
 import psutil
 import subprocess
 from typing import Dict, List
@@ -20,19 +21,20 @@ class MetricsCollector:
             result = subprocess.run([
                 'nvidia-smi',
                 f'--id={gpu_index}',
-                '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,clocks.sm',
-                '--format=csv,nounits'
+                '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,clocks.sm,name',
+                '--format=csv,nounits,noheader'
             ], capture_output=True, text=True, timeout=5)
             
             if result.returncode == 0:
                 values = [v.strip() for v in result.stdout.strip().split(',')]
                 metrics = {
                     'gpu_utilization': float(values[0]),
-                    'gpu_memory_used': float(values[1]) / 1024,
-                    'gpu_memory_total': float(values[2]) / 1024,
+                    'gpu_memory_used': float(values[1]),
+                    'gpu_memory_total': float(values[2]),
                     'gpu_temp': float(values[3]),
                     'power_draw': float(values[4]),
-                    'sm_clock': float(values[5])
+                    'sm_clock': float(values[5]),
+                    'name': values[6]
                 }
                 self.peak_gpu_util = max(self.peak_gpu_util, metrics['gpu_utilization'])
                 self.peak_gpu_mem = max(self.peak_gpu_mem, metrics['gpu_memory_used'])
@@ -54,47 +56,55 @@ class MetricsCollector:
 
     def collect_metrics(self) -> Dict:
         try:
-            gpu_count = int(subprocess.check_output(
-                ['nvidia-smi', '--query-gpu=gpu_name', '--format=csv,noheader'], 
-                text=True
-            ).count('\n'))
-        except:
-            gpu_count = 0
+            # GPU metrics
+            try:
+                gpu_count = int(subprocess.check_output(
+                    ['nvidia-smi', '--query-gpu=gpu_name', '--format=csv,noheader'], 
+                    text=True
+                ).count('\n'))
+            except:
+                gpu_count = 0
 
-        gpu_metrics = [self.get_gpu_metrics(i) for i in range(gpu_count)]
-        current_tps = self.calculate_tps()
-        
-        if gpu_metrics:
-            avg_util = sum(gpu['gpu_utilization'] for gpu in gpu_metrics) / len(gpu_metrics)
-            avg_mem = sum(gpu['gpu_memory_used'] for gpu in gpu_metrics) / len(gpu_metrics)
-            avg_power = sum(gpu['power_draw'] for gpu in gpu_metrics) / len(gpu_metrics)
-        else:
-            avg_util = avg_mem = avg_power = 0
+            gpu_metrics = [self.get_gpu_metrics(i) for i in range(gpu_count)]
+            current_tps = self.calculate_tps()
 
-        metrics = {
-            'timestamp': datetime.now().isoformat(),
-            'gpu_count': gpu_count,
-            'gpu_metrics': gpu_metrics,
-            'cpu_usage': psutil.cpu_percent(interval=1),
-            'memory_used': psutil.virtual_memory().used / (1024**3),
-            'memory_total': psutil.virtual_memory().total / (1024**3),
-            'tokens_per_second': current_tps,
-            'peak_tps': self.peak_tps,
-            'avg_gpu_utilization': avg_util,
-            'peak_gpu_util': self.peak_gpu_util,
-            'avg_gpu_memory': avg_mem,
-            'peak_gpu_mem': self.peak_gpu_mem,
-            'power_draw': avg_power,
-            'tokens_per_watt': current_tps / avg_power if avg_power > 0 else 0
-        }
+            # CPU metrics
+            cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
+            cpu_freq = psutil.cpu_freq()
+            cpu_temp = psutil.sensors_temperatures().get('coretemp', [])
+            
+            cpu_metrics = {
+                'utilization': cpu_percent,
+                'frequency': float(cpu_freq.current) if cpu_freq else 0,
+                'temperature': [t.current for t in cpu_temp] if cpu_temp else [],
+                'core_count': psutil.cpu_count(logical=True)
+            }
+            
+            if gpu_metrics:
+                avg_util = sum(gpu.get('gpu_utilization', 0) for gpu in gpu_metrics) / len(gpu_metrics)
+                avg_power = sum(gpu.get('power_draw', 0) for gpu in gpu_metrics) / len(gpu_metrics)
+            else:
+                avg_util = avg_power = 0
 
-        # Keep last 60 seconds of history
-        self.historical_metrics.append(metrics)
-        if len(self.historical_metrics) > 60:
-            self.historical_metrics.pop(0)
+            metrics = {
+                'timestamp': datetime.now().isoformat(),
+                'gpu_metrics': gpu_metrics,
+                'cpu_metrics': cpu_metrics,
+                'tokens_per_second': current_tps,
+                'peak_tps': self.peak_tps,
+                'avg_gpu_utilization': avg_util,
+                'power_draw': avg_power
+            }
 
-        metrics['historical_metrics'] = self.historical_metrics
-        return metrics
+            self.historical_metrics.append(metrics)
+            if len(self.historical_metrics) > 60:
+                self.historical_metrics.pop(0)
+
+            return metrics
+
+        except Exception as e:
+            logger.error(f"Error collecting metrics: {e}")
+            return {}
 
     def record_tokens(self, count: int):
         self.tokens_count += count

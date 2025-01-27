@@ -1,6 +1,7 @@
 // src/components/BenchmarkManagement.tsx
 import React, { useState } from "react";
-import { startBenchmark, BenchmarkConfig } from "../services/api";  // Fixed import
+import { startBenchmark } from "../services/api";
+import type { BenchmarkConfig } from "../types/benchmark";
 
 const BenchmarkManagement: React.FC = () => {
   const [totalRequests, setTotalRequests] = useState(100);
@@ -17,7 +18,9 @@ const BenchmarkManagement: React.FC = () => {
       max_tokens: maxTokens,
       name: prompt,
       prompt: prompt,
-      nim_id: ""  // This should be selected by the user
+      nim_id: "",  // This should be selected by the user
+      gpu_count: 1,  // Default to 1 GPU
+      stream: true   // Default to streaming enabled
     };
 
     try {
@@ -33,6 +36,7 @@ const BenchmarkManagement: React.FC = () => {
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg space-y-4">
+      <h2 className="text-xl font-bold">Benchmark Management</h2>
       <h2 className="text-xl font-bold">Benchmark Management</h2>
 
       <div className="flex flex-col space-y-2">

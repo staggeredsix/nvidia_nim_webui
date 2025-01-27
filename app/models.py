@@ -11,7 +11,7 @@ class BenchmarkRun(Base):
     model_name = Column(String, index=True)
     config = Column(Text)
     status = Column(String, default="starting")
-    start_time = Column(DateTime, default=datetime.utcnow)
+    start_time = Column(DateTime, default=datetime.now)
     end_time = Column(DateTime, nullable=True)
     total_requests = Column(Integer, default=0)
     successful_requests = Column(Integer, default=0)
@@ -25,7 +25,7 @@ class MetricPoint(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     benchmark_run_id = Column(Integer, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     tokens_per_second = Column(Float, default=0.0)
     requests_per_second = Column(Float, default=0.0)
     latency = Column(Float, default=0.0)

@@ -21,7 +21,7 @@ class BenchmarkRun:
         self.nim_id = nim_id
         self.config = config
         self.status = status
-        self.start_time = start_time or datetime.utcnow()
+        self.start_time = start_time or datetime.now()
         self.end_time = None
         
         # Performance metrics

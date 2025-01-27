@@ -6,9 +6,16 @@ interface LogViewerProps {
   containerId: string | null;
   isContainerRunning: boolean;
   onSaveLogs?: (filename: string) => void;
+  gpuInfo?: Array<{
+    name?: string;
+    gpu_utilization: number;
+    gpu_memory_used: number;
+    gpu_temp: number;
+    power_draw: number;
+  }>;
 }
 
-const LogViewer: React.FC<LogViewerProps> = ({ containerId, isContainerRunning, onSaveLogs }) => {
+const LogViewer: React.FC<LogViewerProps> = ({ containerId, isContainerRunning, onSaveLogs, gpuInfo }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [logFilename, setLogFilename] = useState('');
@@ -43,10 +50,10 @@ const LogViewer: React.FC<LogViewerProps> = ({ containerId, isContainerRunning, 
     };
   }, [isOpen, containerId, isContainerRunning]);
 
-  const handleSaveLogs = () => {
-    if (!logFilename.trim()) return;
+  const handleSaveLogs = async () => {
+    if (!logFilename.trim() || !onSaveLogs) return;
     setIsSaving(true);
-    onSaveLogs?.(logFilename);
+    await onSaveLogs(logFilename);
     setIsSaving(false);
     setLogFilename('');
   };
@@ -67,6 +74,22 @@ const LogViewer: React.FC<LogViewerProps> = ({ containerId, isContainerRunning, 
 
       {isOpen && (
         <div className="mt-2 bg-gray-900 rounded-lg border border-gray-700">
+          {/* GPU Info Section */}
+          {gpuInfo && gpuInfo.length > 0 && (
+            <div className="p-2 border-b border-gray-700">
+              <div className="text-sm font-medium text-gray-400">
+                GPUs used in this benchmark:
+              </div>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {gpuInfo.map((gpu, index) => (
+                  <div key={index} className="text-sm text-gray-300">
+                    GPU {index}: {gpu.name || 'Unknown'}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="p-2 border-b border-gray-700 flex justify-between items-center">
             <span className="text-sm font-medium">Container Logs</span>
             <div className="flex items-center space-x-2">

@@ -16,7 +16,6 @@ class BenchmarkConfig(BaseModel):
     name: str = Field(..., min_length=1, description="Name of the benchmark")
     description: Optional[str] = Field(None, description="Optional description of the benchmark")
     nim_id: str = Field(..., min_length=1, description="ID of the NIM container to use")
-
 @router.post("/")
 async def create_benchmark(config: BenchmarkConfig):
     try:
