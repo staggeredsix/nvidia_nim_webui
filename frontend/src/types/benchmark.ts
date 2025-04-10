@@ -5,9 +5,11 @@ export interface BenchmarkConfig {
   max_tokens?: number;
   prompt: string;
   name: string;
-  nim_id: string;
-  gpu_count: number;
+  model_id: string;
   stream?: boolean;
+  temperature?: number;
+  top_p?: number;
+  top_k?: number;
 }
 
 export interface BenchmarkMetrics {
@@ -29,6 +31,7 @@ export interface BenchmarkMetrics {
     power_draw: number;
   }>;
   total_tokens: number;
+  tokens_per_watt: number;
   successful_requests: number;
   failed_requests: number;
 }
