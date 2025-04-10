@@ -1,44 +1,13 @@
 // src/services/api.ts
 import axios from "axios";
-import type { BenchmarkRun as BenchmarkRunType, BenchmarkConfig as BenchmarkConfigType } from '../types/benchmark';
+import type { BenchmarkRun, BenchmarkConfig } from '../types/benchmark';
+import type { OllamaModel, OllamaModelInfo, ModelHealth } from '../types/model';
 
 const BASE_URL = `http://${window.location.hostname}:7000`;
 const WS_BASE = `ws://${window.location.hostname}:7000`;
 
 // Re-export types
-export type BenchmarkRun = BenchmarkRunType;
-export type BenchmarkConfig = BenchmarkConfigType;
-
-export interface ContainerInfo {
-  container_id: string;
-  image_name: string;
-  port: number | null;
-  status: string;
-  is_container: boolean;
-  health: {
-    healthy: boolean;
-    status: string;
-    checks: any[];
-  };
-  labels: Record<string, string>;
-  tags: string[];
-}
-
-export interface BenchmarkMetrics {
-  tokens_per_second: number;
-  peak_tps: number;
-  p95_latency: number;
-  time_to_first_token: number;
-  inter_token_latency: number;
-  average_gpu_utilization: number;
-  peak_gpu_utilization: number;
-  average_gpu_memory: number;
-  peak_gpu_memory: number;
-  gpu_power_draw: number;
-  total_tokens: number;
-  successful_requests: number;
-  failed_requests: number;
-}
+export type { BenchmarkRun, BenchmarkConfig };
 
 // API Functions
 export const startBenchmark = async (config: BenchmarkConfig) => {
@@ -60,70 +29,71 @@ export const fetchBenchmarkHistory = async (): Promise<BenchmarkRun[]> => {
   return response.data;
 };
 
-export const saveNgcKey = async (key: string): Promise<void> => {
+// Models API
+export const getModels = async (): Promise<OllamaModel[]> => {
   try {
-    await axios.post(`${BASE_URL}/api/ngc-key`, { key });
-  } catch (error) {
-    console.error("Error saving NGC key:", error);
-    throw error;
-  }
-};
-
-export const getNgcKey = async (): Promise<string | null> => {
-  try {
-    const response = await axios.get(`${BASE_URL}/api/ngc-key`);
-    return response.data.key;
-  } catch (error: any) {
-    if (error.response?.status === 404) {
-      return null;
-    }
-    console.error("Error retrieving NGC key:", error);
-    throw error;
-  }
-};
-
-export const deleteNgcKey = async (): Promise<void> => {
-  try {
-    await axios.delete(`${BASE_URL}/api/ngc-key`);
-  } catch (error) {
-    console.error("Error deleting NGC key:", error);
-    throw error;
-  }
-};
-
-export const getNims = async (): Promise<ContainerInfo[]> => {
-  try {
-    const response = await axios.get(`${BASE_URL}/api/nims`);
+    const response = await axios.get(`${BASE_URL}/api/models`);
     return response.data;
   } catch (error) {
-    console.error("Error fetching NIMs:", error);
+    console.error("Error fetching models:", error);
     throw error;
   }
 };
 
-export const pullNim = async (imageName: string): Promise<ContainerInfo> => {
+export const searchModels = async (query: string = ""): Promise<OllamaModel[]> => {
   try {
-    const response = await axios.post(`${BASE_URL}/api/nims/pull`, { image_name: imageName });
-    return response.data.container;
+    const response = await axios.post(`${BASE_URL}/api/models/search`, { query });
+    return response.data;
   } catch (error) {
-    console.error("Error pulling NIM:", error);
+    console.error("Error searching models:", error);
     throw error;
   }
 };
 
-export const stopNim = async (): Promise<void> => {
+export const pullModel = async (name: string): Promise<{ status: string; model: string }> => {
   try {
-    await axios.post(`${BASE_URL}/api/nims/stop`);
+    const response = await axios.post(`${BASE_URL}/api/models/pull`, { name });
+    return response.data;
   } catch (error) {
-    console.error("Error stopping NIM:", error);
+    console.error("Error pulling model:", error);
     throw error;
   }
 };
 
-export const saveLogs = async (containerId: string, filename: string): Promise<void> => {
+export const deleteModel = async (modelName: string): Promise<{ status: string; model: string }> => {
+  try {
+    const response = await axios.delete(`${BASE_URL}/api/models/${modelName}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting model:", error);
+    throw error;
+  }
+};
+
+export const getModelInfo = async (modelName: string): Promise<OllamaModelInfo> => {
+  try {
+    const response = await axios.get(`${BASE_URL}/api/models/${modelName}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error getting model info:", error);
+    throw error;
+  }
+};
+
+export const getModelHealth = async (modelName: string): Promise<ModelHealth> => {
+  try {
+    const response = await axios.get(`${BASE_URL}/api/models/${modelName}/health`);
+    return response.data;
+  } catch (error) {
+    console.error("Error checking model health:", error);
+    throw error;
+  }
+};
+
+export const saveLogs = async (logId: string, filename: string): Promise<void> => {
   try {
     await axios.post(`${BASE_URL}/api/logs/save`, {
-      container_id: containerId,
+      log_id: logId,
       filename: filename
     });
   } catch (error) {
@@ -133,8 +103,8 @@ export const saveLogs = async (containerId: string, filename: string): Promise<v
 };
 
 // WebSocket connection for live logs
-export const createLogStream = (containerId: string, onMessage: (log: string) => void) => {
-  const ws = new WebSocket(`${WS_BASE}/ws/logs/${containerId}`);
+export const createLogStream = (logId: string, onMessage: (log: string) => void) => {
+  const ws = new WebSocket(`${WS_BASE}/ws/logs/${logId}`);
   ws.onmessage = (event) => {
     onMessage(JSON.parse(event.data).log);
   };
