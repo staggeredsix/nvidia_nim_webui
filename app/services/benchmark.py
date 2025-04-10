@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from ..utils.logger import logger
-from ..services.container import container_manager
+from ..services.ollama import ollama_manager
 from ..utils.metrics import metrics_collector
 
 class BenchmarkService:
@@ -15,26 +15,11 @@ class BenchmarkService:
         self.benchmark_dir.mkdir(exist_ok=True)
         self.current_benchmark_metrics = {}
 
-    async def wait_for_nim_ready(self, nim_id: str, timeout: int = 60) -> bool:
-        start_time = datetime.now()
-        while (datetime.now() - start_time).seconds < timeout:
-            nim_info = container_manager.load_nim()
-            if not nim_info or nim_info["container_id"] != nim_id:
-                logger.warning(f"NIM container {nim_id} not found or inactive.")
-                return False
-            if nim_info.get("status") == "ready":
-                logger.info(f"NIM container {nim_id} is ready.")
-                return True
-            logger.debug(f"Waiting for NIM {nim_id} to be ready... ({timeout - (datetime.now() - start_time).seconds}s remaining)")
-            await asyncio.sleep(1)
-        logger.error(f"Timeout waiting for NIM container {nim_id} to be ready.")
-        return False
-
-    async def execute_nim_benchmark(self, config: Dict[str, Any], container_info: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_benchmark(self, config: Dict[str, Any], model_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a benchmark against an Ollama model."""
         try:
-            port = container_info['port']
-            model_info = container_info['model_info']
-            logger.info(f"Starting benchmark against {model_info['full_name']} on port {port}")
+            model_name = model_info['name']
+            logger.info(f"Starting benchmark for {model_name}")
 
             success_count = 0
             total_tokens = 0
@@ -57,42 +42,54 @@ class BenchmarkService:
             metrics_task = asyncio.create_task(collect_metrics())
 
             try:
-                async with aiohttp.ClientSession() as session:
-                    tasks = []
-                    semaphore = asyncio.Semaphore(config['concurrency_level'])
-
-                    async def make_request():
-                        nonlocal success_count, total_tokens, total_latency, peak_tps
-                        async with semaphore:
-                            try:
-                                req_start = datetime.now()
+                # Set up request batches based on concurrency
+                semaphore = asyncio.Semaphore(config['concurrency_level'])
+                model = model_name
+                
+                async def make_request():
+                    nonlocal success_count, total_tokens, total_latency, peak_tps
+                    async with semaphore:
+                        try:
+                            req_start = datetime.now()
+                            
+                            # Format the request for Ollama
+                            data = {
+                                "model": model,
+                                "prompt": config['prompt'],
+                                "stream": config.get('stream', False),
+                                "options": {
+                                    "num_predict": config.get('max_tokens', 50),
+                                    "temperature": config.get('temperature', 0.7)
+                                }
+                            }
+                            
+                            async with aiohttp.ClientSession() as session:
                                 async with session.post(
-                                    f"http://localhost:8000/v1/completions",
-                                    json={
-                                        "model": model_info['full_name'],
-                                        "prompt": config['prompt'],
-                                        "max_tokens": config.get('max_tokens', 50),
-                                        "stream": config.get('stream', False)
-                                    }
+                                    f"{ollama_manager.base_url}/api/generate",
+                                    json=data,
+                                    timeout=60  # Longer timeout for generation
                                 ) as response:
                                     if response.status != 200:
                                         logger.error(f"Request failed with status {response.status}")
                                         return
 
                                     if config.get('stream', False):
-                                        chunks = []
+                                        # Handle streaming response
+                                        tokens = 0
                                         async for line in response.content:
-                                            if line.startswith(b'data: '):
-                                                try:
-                                                    chunk = json.loads(line[6:])
-                                                    if chunk.get('choices', [{}])[0].get('text'):
-                                                        chunks.append(chunk['choices'][0]['text'])
-                                                except json.JSONDecodeError:
-                                                    continue
-                                        tokens = len(''.join(chunks).split())
+                                            try:
+                                                chunk = json.loads(line)
+                                                if chunk.get('response'):
+                                                    tokens += len(chunk['response'].split())
+                                            except json.JSONDecodeError:
+                                                continue
                                     else:
+                                        # Handle non-streaming response
                                         data = await response.json()
-                                        tokens = len(data.get("choices", [{}])[0].get("text", "").split())
+                                        tokens = len(data.get('response', '').split())
+                                        # Alternative token count from Ollama
+                                        if 'eval_count' in data:
+                                            tokens = data['eval_count']
 
                                     latency = (datetime.now() - req_start).total_seconds()
                                     success_count += 1
@@ -115,12 +112,12 @@ class BenchmarkService:
                                         "total_requests": config['total_requests']
                                     }
 
-                            except Exception as e:
-                                logger.error(f"Request error: {str(e)}")
+                        except Exception as e:
+                            logger.error(f"Request error: {str(e)}")
 
-                    # Create and run concurrent requests
-                    tasks = [make_request() for _ in range(config['total_requests'])]
-                    await asyncio.gather(*tasks)
+                # Create and run concurrent requests
+                tasks = [make_request() for _ in range(config['total_requests'])]
+                await asyncio.gather(*tasks)
 
                 if not latencies:
                     raise Exception("No successful requests completed")
@@ -129,12 +126,12 @@ class BenchmarkService:
                 if gpu_metrics_history:
                     avg_metrics = gpu_metrics_history[-1]  # Get latest metrics
                     gpu_metrics = [{
-                        'gpu_utilization': gpu['gpu_utilization'],
-                        'gpu_memory_used': gpu['gpu_memory_used'],
-                        'gpu_temp': gpu['gpu_temp'],
-                        'power_draw': gpu['power_draw']
-                    } for gpu in avg_metrics['gpu_metrics']]
-                    avg_power = avg_metrics['power_draw']
+                        'gpu_utilization': gpu.get('gpu_utilization', 0),
+                        'gpu_memory_used': gpu.get('gpu_memory_used', 0),
+                        'gpu_temp': gpu.get('gpu_temp', 0),
+                        'power_draw': gpu.get('power_draw', 0)
+                    } for gpu in avg_metrics.get('gpu_metrics', [])]
+                    avg_power = avg_metrics.get('power_draw', 0)
                 else:
                     gpu_metrics = []
                     avg_power = 0
@@ -154,7 +151,7 @@ class BenchmarkService:
                     "tokens_per_watt": tokens_per_watt,
                     "successful_requests": success_count,
                     "failed_requests": config['total_requests'] - success_count,
-                    "model_name": model_info['full_name'],
+                    "model_name": model_name,
                     "historical": [{
                         "timestamp": datetime.now().isoformat(),
                         "tokens_per_second": total_tokens / total_latency if total_latency > 0 else 0,
@@ -177,19 +174,14 @@ class BenchmarkService:
             raise
 
     async def create_benchmark(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        container_info = None
         try:
-            container_info = await container_manager.start_container(
-                config['nim_id'], 
-                config.get('gpu_count', 1)
-            )
-            if not container_info:
-                raise Exception("Failed to start NIM container")
+            # Get model info
+            model_info = await ollama_manager.get_model_info(config['model_id'])
+            if not model_info:
+                raise Exception(f"Model {config['model_id']} not found")
 
-            if not await self.wait_for_nim_ready(container_info['container_id']):
-                raise RuntimeError("NIM container did not become ready")
-
-            metrics = await self.execute_nim_benchmark(config, container_info)
+            # Execute benchmark
+            metrics = await self.execute_benchmark(config, model_info)
 
             # Create safe filename from benchmark name
             safe_name = "".join(c for c in config['name'] if c.isalnum() or c in ('-', '_')).strip()
@@ -216,12 +208,6 @@ class BenchmarkService:
         except Exception as e:
             logger.error(f"Benchmark creation error: {str(e)}")
             raise
-        finally:
-            if container_info:
-                try:
-                    await container_manager.stop_container(container_info['container_id'])
-                except Exception as e:
-                    logger.error(f"Error stopping container: {str(e)}")
 
     def get_benchmark_history(self) -> List[Dict[str, Any]]:
         try:
@@ -233,7 +219,7 @@ class BenchmarkService:
                 except json.JSONDecodeError:
                     logger.error(f"Error reading benchmark file: {file_path}")
                     continue
-            return sorted(history, key=lambda x: x["id"], reverse=True)
+            return sorted(history, key=lambda x: x.get("id", 0), reverse=True)
         except Exception as e:
             logger.error(f"Error reading benchmark history: {e}")
             return []
