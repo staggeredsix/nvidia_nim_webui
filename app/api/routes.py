@@ -4,14 +4,12 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 import asyncio
 from app.utils.logger import logger
-import os
-from app.utils.ngc_key_helper import retrieve_key
+
 from .endpoints.benchmark_endpoint import router as benchmark_router
-from .endpoints.nim import router as nim_router
-from .endpoints.ngc import router as ngc_router
+from .endpoints.models import router as models_router 
 from .endpoints.logs import router as logs_router
 from app.services.benchmark import benchmark_service
-from app.services.container import container_manager
+from app.services.ollama import ollama_manager
 from app.utils.connection import connection_manager
 from app.utils.metrics import metrics_collector
 from .endpoints.metrics_endpoint import router as metrics_router
@@ -20,11 +18,9 @@ limiter = Limiter(key_func=get_remote_address)
 api_router = APIRouter()
 
 api_router.include_router(benchmark_router, prefix="/benchmark", tags=["benchmark"])
-api_router.include_router(nim_router, prefix="/nims", tags=["nim"])
-api_router.include_router(ngc_router, prefix="/ngc-key", tags=["ngc"])
+api_router.include_router(models_router, prefix="/models", tags=["models"])
 api_router.include_router(logs_router, prefix="/logs", tags=["logs"])
 api_router.include_router(metrics_router, prefix="/metrics", tags=["metrics"])
-
 
 @api_router.websocket("/metrics")
 async def metrics_websocket(websocket: WebSocket):
@@ -52,22 +48,18 @@ async def benchmark(request: Request):
 
         name = payload.get('name')
         parameters = payload.get('parameters', {})
-        nim_id = payload.get('nim_id')
-        gpu_count = payload.get('gpu_count', 1)
+        model_id = payload.get('model_id')
         concurrency_level = payload.get('concurrency_level', 1)
         max_tokens = payload.get('max_tokens', 50)
         total_requests = payload.get('total_requests', 100)
 
-        if not nim_id:
-            raise HTTPException(status_code=400, detail="'nim_id' is a required field.")
+        if not model_id:
+            raise HTTPException(status_code=400, detail="'model_id' is a required field.")
 
-        ngc_api_key = retrieve_key()
-        if not ngc_api_key:
-            raise HTTPException(status_code=500, detail="NGC API key is not set. Please add it through the WebUI.")
-
-        os.environ["NGC_API_KEY"] = ngc_api_key
-        local_nim_cache = os.path.expanduser("~/.cache/nim")
-        os.makedirs(local_nim_cache, exist_ok=True)
+        # Check if model exists
+        model_info = await ollama_manager.get_model_info(model_id)
+        if not model_info:
+            raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
 
         result = await benchmark_service.create_benchmark(payload)
         return result
@@ -77,12 +69,12 @@ async def benchmark(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
-@api_router.get("/nims", tags=["nim"])
+@api_router.get("/models", tags=["models"])
 @limiter.limit("1000/minute")
-async def default_nims_route(request: Request):
+async def default_models_route(request: Request):
     try:
-        containers = container_manager.list_containers()
-        return containers if containers is not None else []
+        models = await ollama_manager.list_models()
+        return models
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
