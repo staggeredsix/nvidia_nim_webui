@@ -16,7 +16,7 @@ const NavLink = ({ to, children, icon: Icon }) => {
       to={to}
       className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
         isActive 
-          ? 'bg-[#76B900] text-white' 
+          ? 'bg-green-600 text-white' 
           : 'text-gray-300 hover:bg-gray-800'
       }`}
     >
@@ -35,8 +35,8 @@ const MainLayout = () => {
       <div className="w-64 bg-gray-950 p-4 flex flex-col">
         <div className="mb-8">
           <Link to="/" className="flex items-center space-x-2">
-            <Monitor className="w-8 h-8 text-[#76B900]" />
-            <span className="text-xl font-bold">Benchmark Hub</span>
+            <Monitor className="w-8 h-8 text-green-500" />
+            <span className="text-xl font-bold">Ollama Bench</span>
           </Link>
         </div>
         
@@ -70,7 +70,7 @@ const MainLayout = () => {
       <div className="flex-1">
         <header className="bg-gray-950 p-4 shadow-lg">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-semibold">NVIDIA vLLM NIM Benchmark Manager</h1>
+            <h1 className="text-xl font-semibold">Ollama Benchmark Manager</h1>
             <div className="flex items-center space-x-4">
               <div className="text-gray-400">
                 <span>TPS: </span>
@@ -86,7 +86,7 @@ const MainLayout = () => {
               </div>
               <Link 
                 to="/benchmarks" 
-                className="px-4 py-2 bg-[#76B900] text-white rounded-lg hover:bg-[#88d600] transition-colors"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
                 New Benchmark
               </Link>
