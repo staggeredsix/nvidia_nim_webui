@@ -1,203 +1,106 @@
-NIM Benchmark Tool Programming Guide
-Project Structure
-Copy├── app/
-│   ├── api/                 # FastAPI routes and endpoints
-│   ├── services/           # Business logic
-│   └── utils/             # Utility functions
-├── frontend/
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── hooks/        # Custom React hooks
-│   │   ├── routes/       # Page components
-│   │   ├── services/     # API clients
-│   │   └── types/       # TypeScript type definitions
-└── requirements.txt      # Python dependencies
+# Ollama Benchmark Tool
 
-## Key Components
+A comprehensive tool for benchmarking Ollama models, measuring performance metrics, and optimizing deployment configurations.
 
-### Backend (Python/FastAPI)
+## Features
 
-1. `benchmark_service.py`: Manages benchmark execution
-   - Handles NIM container lifecycle
-   - Executes benchmarks
-   - Records metrics
+- **Model Management**: Search, download, and manage Ollama models
+- **Comprehensive Benchmarking**: Test models with configurable parameters
+- **Real-time Metrics**: Monitor GPU utilization, memory usage, temperature, and power consumption
+- **Performance Analytics**: Track tokens per second, latency, and efficiency metrics
+- **Historical Data**: Compare benchmark results across different models and configurations
 
-2. `metrics.py`: GPU metrics collection
-   - Real-time GPU monitoring
-   - System metrics tracking
-   - Historical data collection
+## Prerequisites
 
-3. `container.py`: NIM container management
-   - Container lifecycle (start/stop)
-   - Health checks
-   - Port management
+- Python 3.10+
+- Node.js 18+
+- Ollama installed and running
+- NVIDIA GPU drivers (for GPU monitoring)
 
-### Frontend (React/TypeScript)
+## Quick Start
 
-1. `TelemetryComponents.tsx`: Real-time metrics display
-   - GPU utilization
-   - Memory usage
-   - Power consumption
+### Running with Docker
 
-2. `BenchmarkHistory.tsx`: Historical data viewing
-   - Past benchmark results
-   - Performance metrics
-   - Export functionality
+```bash
+# Build the Docker image
+docker build -t ollama-benchmark .
 
-## Common Tasks
-
-### Adding New Metrics
-
-1. Update `metrics.py`:
-```python
-def get_gpu_metrics(self, gpu_index: int) -> Dict:
-    # Add new metric to collection
-
-Update TypeScript types in types/metrics.ts:
-
-typescriptCopyinterface MetricsData {
-    // Add new metric type
-}
-
-Update display component in TelemetryComponents.tsx
-
-Adding New Features
-
-Backend Route:
-
-Add endpoint in appropriate file under app/api/
-Implement service logic in app/services/
-
-
-Frontend Integration:
-
-Add API client method in services/api.ts
-Create/update React component
-Add to relevant route
-
-
-
-Known Issues & Fixes
-
-WebSocket Connection:
-
-Use dynamic hostname
-Implement reconnection logic
-Add error handling
-
-
-Metrics Collection:
-
-Ensure consistent units (MB vs GB)
-Add proper error handling
-Implement retry logic
-
-
-Container Management:
-
-Add timeout handling
-Implement health checks
-Add cleanup logic
-
-
-
-Testing
-
-Backend:
-
-bashCopypytest tests/
-
-Frontend:
-
-bashCopynpm test
-Common Errors
-
-"model_name not found":
-
-Check container_info structure
-Verify NIM container status
-
-
-WebSocket disconnections:
-
-Check network connectivity
-Verify port accessibility
-Check server logs
-
-
-Missing metrics:
-
-Verify nvidia-smi access
-Check GPU permissions
-Verify CUDA installation
-
-
-
-# Bug Fixes
-
-## Critical Fixes
-
-1. WebSocket Connection:
-```typescript
-const WS_BASE = `ws://${window.location.hostname}:7000`;
-const ws = new WebSocket(`${WS_BASE}/ws/metrics`);
+# Run the container
+docker run -p 7000:7000 --gpus all ollama-benchmark
 ```
 
-2. Metrics Collection:
-```python
-# Fix nvidia-smi command
-result = subprocess.run([
-    'nvidia-smi',
-    f'--id={gpu_index}',
-    '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw',
-    '--format=csv,nounits'
-], capture_output=True, text=True, timeout=5)
+### Manual Setup
+
+1. Install Python dependencies:
+
+```bash
+pip install -r requirements.txt
 ```
 
-3. Container Port:
-```python
-# Use container_info port instead of hardcoded
-port = container_info['port']
-endpoint = f"http://localhost:{port}/v1/completions"
+2. Install Node.js dependencies and build the frontend:
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
 ```
 
-## Performance Improvements
+3. Start the application:
 
-1. Frontend State Management:
-```typescript
-useEffect(() => {
-    if (metrics?.gpu_metrics) {
-        setGpuData(metrics.gpu_metrics.map((metric, index) => ({
-            name: `GPU ${index}`,
-            utilization: metric.gpu_utilization,
-            power: metric.power_draw
-        })));
-    }
-}, [metrics?.gpu_metrics]); // Only update when GPU metrics change
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 7000
 ```
 
-2. Backend Memory Usage:
-```python
-# Limit historical metrics storage
-if len(self.historical_metrics) > 100:
-    self.historical_metrics = self.historical_metrics[-100:]
+4. Open your browser to `http://localhost:7000`
+
+## Configuring Ollama
+
+By default, the benchmark tool connects to Ollama at `http://localhost:11434`. You can change this in the Settings page.
+
+Make sure Ollama is running before starting benchmarks:
+
+```bash
+ollama serve
 ```
 
-## Error Handling
+## Running Benchmarks
 
-1. Container State:
-```python
-if not container_info:
-    raise Exception("Failed to start NIM container")
+1. Go to the Settings page and install models you want to benchmark
+2. Navigate to the Benchmarks page
+3. Configure your benchmark parameters:
+   - Select a model
+   - Set the prompt template
+   - Configure total requests and concurrency
+   - Adjust model parameters (temperature, top_p, etc.)
+4. Click "Start Benchmark" to begin testing
+5. View real-time metrics during the benchmark
+6. Review historical benchmark data on the Dashboard
+
+## Metrics Explanation
+
+- **Tokens Per Second (TPS)**: The throughput of the model measured in tokens generated per second
+- **Latency**: Time to first token and inter-token latency
+- **GPU Utilization**: Percentage of GPU compute resources being used
+- **Memory Usage**: GPU memory consumption during inference
+- **Power Efficiency**: Tokens generated per watt of power consumed
+
+## Project Structure
+
+```
+├── app/                 # Backend application
+│   ├── api/             # FastAPI routes and endpoints
+│   ├── services/        # Business logic
+│   └── utils/           # Utility functions
+├── frontend/           # React frontend application
+├── Dockerfile          # Docker configuration
+└── requirements.txt    # Python dependencies
 ```
 
-2. WebSocket Reconnection:
-```typescript
-const reconnectTimeoutRef = useRef<number>();
-// Exponential backoff retry
-if (retryCount < MAX_RETRIES) {
-    reconnectTimeoutRef.current = window.setTimeout(() => {
-        connect();
-    }, RETRY_DELAY * Math.pow(2, retryCount));
-}
-```
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
