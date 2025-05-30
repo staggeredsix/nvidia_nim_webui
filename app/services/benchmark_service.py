@@ -63,6 +63,7 @@ class BenchmarkService:
                             total_tokens += tokens
                             total_latency += latency
                             latencies.append(latency)
+                            metrics_collector.record_tokens(tokens)
 
                             # Update current metrics for websocket
                             elapsed = (datetime.now() - start_time).total_seconds()
@@ -80,8 +81,11 @@ class BenchmarkService:
             if not latencies:
                 raise Exception("No successful requests completed")
 
+            duration = (datetime.now() - start_time).total_seconds()
+            tokens_per_second = total_tokens / duration if duration > 0 else 0
+
             return {
-                "tokens_per_second": total_tokens / total_latency if total_latency > 0 else 0,
+                "tokens_per_second": tokens_per_second,
                 "latency": sum(latencies) / len(latencies),
                 "gpu_metrics": [self._format_gpu_metrics(m) for m in container_info.get('gpu_metrics', [])],
                 "total_tokens": total_tokens,
@@ -90,7 +94,7 @@ class BenchmarkService:
                 "model_name": model_path,
                 "historical": [{
                     "timestamp": datetime.now().isoformat(),
-                    "tokens_per_second": total_tokens / total_latency if total_latency > 0 else 0,
+                    "tokens_per_second": tokens_per_second,
                     "latency": l
                 } for l in latencies]
             }

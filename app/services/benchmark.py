@@ -96,6 +96,7 @@ class BenchmarkService:
                                     total_tokens += tokens
                                     total_latency += latency
                                     latencies.append(latency)
+                                    metrics_collector.record_tokens(tokens)
 
                                     # Calculate current and peak TPS
                                     elapsed = (datetime.now() - start_time).total_seconds()
@@ -136,11 +137,13 @@ class BenchmarkService:
                     gpu_metrics = []
                     avg_power = 0
 
-                tokens_per_watt = (total_tokens / total_latency) / avg_power if avg_power > 0 else 0
+                duration = (datetime.now() - start_time).total_seconds()
+                tokens_per_second = total_tokens / duration if duration > 0 else 0
+                tokens_per_watt = tokens_per_second / avg_power if avg_power > 0 else 0
 
                 # Calculate final metrics
                 metrics = {
-                    "tokens_per_second": total_tokens / total_latency if total_latency > 0 else 0,
+                    "tokens_per_second": tokens_per_second,
                     "peak_tps": peak_tps,
                     "latency": sum(latencies) / len(latencies),
                     "p95_latency": sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0,
@@ -154,7 +157,7 @@ class BenchmarkService:
                     "model_name": model_name,
                     "historical": [{
                         "timestamp": datetime.now().isoformat(),
-                        "tokens_per_second": total_tokens / total_latency if total_latency > 0 else 0,
+                        "tokens_per_second": tokens_per_second,
                         "latency": l
                     } for l in latencies]
                 }
