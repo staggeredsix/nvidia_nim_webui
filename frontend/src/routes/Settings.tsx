@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Key, Download, XCircle, RefreshCw } from 'lucide-react'
+import type { ContainerInfo } from '@/services/api'
 
 interface NimProgress {
   totalSize: number;
@@ -10,7 +11,7 @@ interface NimProgress {
 const Settings = () => {
   const [ngcKey, setNgcKey] = useState('')
   const [nimUrl, setNimUrl] = useState('')
-  const [installedNims, setInstalledNims] = useState([])
+  const [installedNims, setInstalledNims] = useState<ContainerInfo[]>([])
   const [loading, setLoading] = useState(false)
   const [showKey, setShowKey] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
@@ -122,7 +123,20 @@ const Settings = () => {
   const stopCurrentNim = async () => {
     if (!confirm('Are you sure you want to force stop the current NIM?')) return
     try {
-      await fetch('/api/nims/stop', { method: 'POST' })
+      const runningNim = installedNims.find(
+        (nim) => nim.status === 'running' && Boolean(nim.container_id)
+      )
+
+      if (!runningNim || !runningNim.container_id) {
+        showMessage('error', 'No running NIM container found')
+        return
+      }
+
+      await fetch('/api/nims/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ container_id: runningNim.container_id })
+      })
       fetchInstalledNims()
       showMessage('success', 'NIM stopped successfully')
     } catch (error) {

@@ -252,15 +252,29 @@ class ContainerManager:
             logger.error(f"Failed to start container: {e}")
             raise
 
-    async def stop_container(self, container_id: str):
+    async def stop_container(self, container_id: Optional[str] = None):
         """Stop and remove a container."""
         try:
+            if not container_id:
+                active_nim = self._active_nim or self.load_nim()
+                container_id = (active_nim or {}).get("container_id")
+
+            if not container_id:
+                raise RuntimeError("No running NIM container found to stop.")
+
             container = self.client.containers.get(container_id)
             container.stop(timeout=2)
             container.remove(force=True)
             logger.info(f"Stopped and removed container: {container_id}")
-            if self._active_nim and self._active_nim['container_id'] == container_id:
+
+            if self._active_nim and self._active_nim.get('container_id') == container_id:
                 self._active_nim = None
+
+            if os.path.exists(settings.NIM_FILE):
+                try:
+                    os.remove(settings.NIM_FILE)
+                except OSError as file_error:
+                    logger.warning(f"Failed to remove NIM file {settings.NIM_FILE}: {file_error}")
         except APIError as e:
             if "removal of container" in str(e) and "is already in progress" in str(e):
                 logger.info(f"Container {container_id} already being removed")

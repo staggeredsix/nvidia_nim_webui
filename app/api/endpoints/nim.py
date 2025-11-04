@@ -1,6 +1,6 @@
 # File: app/api/endpoints/nim.py
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from typing import Dict, Any
+from fastapi import APIRouter, HTTPException, Request
+from json import JSONDecodeError
 from pydantic import BaseModel
 from app.services.container import ContainerManager
 from app.utils.logger import logger
@@ -24,9 +24,15 @@ async def pull_nim(request: NimPullRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/stop", tags=["nim"])
-async def stop_nim():
+async def stop_nim(request: Request):
     try:
-        container_manager.stop_container()
+        try:
+            payload = await request.json()
+        except (JSONDecodeError, ValueError):
+            payload = {}
+
+        container_id = payload.get("container_id") if isinstance(payload, dict) else None
+        await container_manager.stop_container(container_id)
         return {"status": "stopped"}
     except Exception as e:
         logger.error(f"Failed to stop NIM: {e}")
