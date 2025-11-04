@@ -10,7 +10,7 @@ export type BenchmarkRun = BenchmarkRunType;
 export type BenchmarkConfig = BenchmarkConfigType;
 
 export interface ContainerInfo {
-  container_id: string;
+  container_id: string | null;
   image_name: string;
   port: number | null;
   status: string;
@@ -111,9 +111,10 @@ export const pullNim = async (imageName: string): Promise<ContainerInfo> => {
   }
 };
 
-export const stopNim = async (): Promise<void> => {
+export const stopNim = async (containerId?: string): Promise<void> => {
   try {
-    await axios.post(`${BASE_URL}/api/nims/stop`);
+    const payload = containerId ? { container_id: containerId } : undefined;
+    await axios.post(`${BASE_URL}/api/nims/stop`, payload);
   } catch (error) {
     console.error("Error stopping NIM:", error);
     throw error;
