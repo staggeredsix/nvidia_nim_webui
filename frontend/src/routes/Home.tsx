@@ -4,7 +4,8 @@ import { AlertCircle } from 'lucide-react';
 import useWebSocket from '@/hooks/useWebSocket';
 import { fetchBenchmarkHistory } from "@/services/api";
 import type { BenchmarkRun } from "@/types/benchmark";
-const WS_BASE = `ws://${window.location.hostname}:7000`;
+import { WS_BASE_URL } from '@/config';
+const WS_BASE = WS_BASE_URL;
 
 const Home: React.FC = () => {
   const { metrics, error: wsError, isConnected } = useWebSocket(`${WS_BASE}/ws/metrics`);

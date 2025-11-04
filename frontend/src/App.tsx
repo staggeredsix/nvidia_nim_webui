@@ -5,7 +5,8 @@ import Home from '@/routes/Home';
 import Benchmarks from '@/routes/Benchmarks';
 import Settings from '@/routes/Settings';
 import useWebSocket from '@/hooks/useWebSocket';
-const WS_BASE = `ws://${window.location.hostname}:7000`;
+import { WS_BASE_URL } from '@/config';
+const WS_BASE = WS_BASE_URL;
 
 const NavLink = ({ to, children, icon: Icon }) => {
   const location = useLocation();

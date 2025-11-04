@@ -1,9 +1,10 @@
 // src/services/api.ts
 import axios from "axios";
 import type { BenchmarkRun as BenchmarkRunType, BenchmarkConfig as BenchmarkConfigType } from '../types/benchmark';
+import { API_BASE_URL, WS_BASE_URL } from '@/config';
 
-const BASE_URL = `http://${window.location.hostname}:7000`;
-const WS_BASE = `ws://${window.location.hostname}:7000`;
+const BASE_URL = API_BASE_URL;
+const WS_BASE = WS_BASE_URL;
 
 // Re-export types
 export type BenchmarkRun = BenchmarkRunType;
