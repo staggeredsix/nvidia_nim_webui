@@ -1,9 +1,10 @@
 // src/services/api.ts
 import axios from "axios";
 import type { BenchmarkRun as BenchmarkRunType, BenchmarkConfig as BenchmarkConfigType } from '../types/benchmark';
+import { API_BASE_URL, WS_BASE_URL } from '@/config';
 
-const BASE_URL = `http://${window.location.hostname}:7000`;
-const WS_BASE = `ws://${window.location.hostname}:7000`;
+const BASE_URL = API_BASE_URL;
+const WS_BASE = WS_BASE_URL;
 
 // Re-export types
 export type BenchmarkRun = BenchmarkRunType;
@@ -44,7 +45,7 @@ export interface BenchmarkMetrics {
 export const startBenchmark = async (config: BenchmarkConfig) => {
   console.log("Sending benchmark request:", config);
   try {
-    const response = await axios.post(`${BASE_URL}/api/benchmark`, config);
+    const response = await axios.post(`${BASE_URL}/benchmark`, config);
     return response.data;
   } catch (error) {
     console.error("Benchmark request error:", error);
@@ -56,13 +57,13 @@ export const startBenchmark = async (config: BenchmarkConfig) => {
 };
 
 export const fetchBenchmarkHistory = async (): Promise<BenchmarkRun[]> => {
-  const response = await axios.get(`${BASE_URL}/api/benchmark/history`);
+  const response = await axios.get(`${BASE_URL}/benchmark/history`);
   return response.data;
 };
 
 export const saveNgcKey = async (key: string): Promise<void> => {
   try {
-    await axios.post(`${BASE_URL}/api/ngc-key`, { key });
+    await axios.post(`${BASE_URL}/ngc-key`, { key });
   } catch (error) {
     console.error("Error saving NGC key:", error);
     throw error;
@@ -71,7 +72,7 @@ export const saveNgcKey = async (key: string): Promise<void> => {
 
 export const getNgcKey = async (): Promise<string | null> => {
   try {
-    const response = await axios.get(`${BASE_URL}/api/ngc-key`);
+    const response = await axios.get(`${BASE_URL}/ngc-key`);
     return response.data.key;
   } catch (error: any) {
     if (error.response?.status === 404) {
@@ -84,7 +85,7 @@ export const getNgcKey = async (): Promise<string | null> => {
 
 export const deleteNgcKey = async (): Promise<void> => {
   try {
-    await axios.delete(`${BASE_URL}/api/ngc-key`);
+    await axios.delete(`${BASE_URL}/ngc-key`);
   } catch (error) {
     console.error("Error deleting NGC key:", error);
     throw error;
@@ -93,7 +94,7 @@ export const deleteNgcKey = async (): Promise<void> => {
 
 export const getNims = async (): Promise<ContainerInfo[]> => {
   try {
-    const response = await axios.get(`${BASE_URL}/api/nims`);
+    const response = await axios.get(`${BASE_URL}/nims`);
     return response.data;
   } catch (error) {
     console.error("Error fetching NIMs:", error);
@@ -103,7 +104,7 @@ export const getNims = async (): Promise<ContainerInfo[]> => {
 
 export const pullNim = async (imageName: string): Promise<ContainerInfo> => {
   try {
-    const response = await axios.post(`${BASE_URL}/api/nims/pull`, { image_name: imageName });
+    const response = await axios.post(`${BASE_URL}/nims/pull`, { image_name: imageName });
     return response.data.container;
   } catch (error) {
     console.error("Error pulling NIM:", error);
@@ -114,7 +115,7 @@ export const pullNim = async (imageName: string): Promise<ContainerInfo> => {
 export const stopNim = async (containerId?: string): Promise<void> => {
   try {
     const payload = containerId ? { container_id: containerId } : undefined;
-    await axios.post(`${BASE_URL}/api/nims/stop`, payload);
+    await axios.post(`${BASE_URL}/nims/stop`, payload);
   } catch (error) {
     console.error("Error stopping NIM:", error);
     throw error;
@@ -123,7 +124,7 @@ export const stopNim = async (containerId?: string): Promise<void> => {
 
 export const saveLogs = async (containerId: string, filename: string): Promise<void> => {
   try {
-    await axios.post(`${BASE_URL}/api/logs/save`, {
+    await axios.post(`${BASE_URL}/logs/save`, {
       container_id: containerId,
       filename: filename
     });

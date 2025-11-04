@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Key, Download, XCircle, RefreshCw } from 'lucide-react'
 import type { ContainerInfo } from '@/services/api'
+import { API_BASE_URL } from '@/config'
 
 interface NimProgress {
   totalSize: number;
@@ -30,7 +31,7 @@ const Settings = () => {
 
   const fetchInstalledNims = async () => {
     try {
-      const response = await fetch('/api/nims')
+      const response = await fetch(`${API_BASE_URL}/api/nims`)
       const data = await response.json()
       setInstalledNims(data)
     } catch (error) {
@@ -41,7 +42,7 @@ const Settings = () => {
 
   const handleSaveKey = async () => {
     try {
-      await fetch('/api/ngc-key', {
+      await fetch(`${API_BASE_URL}/api/ngc-key`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: ngcKey })
@@ -57,7 +58,7 @@ const Settings = () => {
   const handleDeleteKey = async () => {
     if (!confirm('Are you sure you want to delete the NGC key?')) return
     try {
-      await fetch('/api/ngc-key', { method: 'DELETE' })
+      await fetch(`${API_BASE_URL}/api/ngc-key`, { method: 'DELETE' })
       showMessage('success', 'NGC key deleted successfully')
     } catch (error) {
       console.error('Error deleting NGC key:', error)
@@ -79,7 +80,7 @@ const Settings = () => {
     setPullProgress(null)
 
     try {
-      const response = await fetch('/api/nims/pull', {
+      const response = await fetch(`${API_BASE_URL}/api/nims/pull`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_name: nimUrl })
@@ -88,7 +89,7 @@ const Settings = () => {
       if (!response.ok) throw new Error('Failed to start NIM installation')
 
       // Set up SSE for progress updates
-      const eventSource = new EventSource(`/api/nims/pull/progress`)
+      const eventSource = new EventSource(`${API_BASE_URL}/api/nims/pull/progress`)
       
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data)
@@ -132,7 +133,7 @@ const Settings = () => {
         return
       }
 
-      await fetch('/api/nims/stop', {
+      await fetch(`${API_BASE_URL}/api/nims/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ container_id: runningNim.container_id })
