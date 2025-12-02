@@ -135,15 +135,15 @@ const BenchmarkHistory = () => {
                           <dl className="space-y-2">
                             <div>
                               <dt className="text-gray-400">Peak TPS</dt>
-                              <dd>{formatNumber(run.metrics.peak_tps)} t/s</dd>
+                              <dd>{formatNumber(run.metrics?.peak_tps || 0)} t/s</dd>
                             </div>
                             <div>
                               <dt className="text-gray-400">P95 Latency</dt>
-                              <dd>{formatNumber(run.metrics.p95_latency)} ms</dd>
+                              <dd>{formatNumber(run.metrics?.p95_latency || 0)} ms</dd>
                             </div>
                             <div>
                               <dt className="text-gray-400">Time to First Token</dt>
-                              <dd>{formatNumber(run.metrics.time_to_first_token)} ms</dd>
+                              <dd>{formatNumber(run.metrics?.time_to_first_token || 0)} ms</dd>
                             </div>
                           </dl>
                         </div>
@@ -152,15 +152,15 @@ const BenchmarkHistory = () => {
                           <dl className="space-y-2">
                             <div>
                               <dt className="text-gray-400">GPU Utilization</dt>
-                              <dd>{formatNumber(run.metrics.average_gpu_utilization)}%</dd>
+                              <dd>{formatNumber(run.metrics?.average_gpu_utilization || 0)}%</dd>
                             </div>
                             <div>
                               <dt className="text-gray-400">Peak GPU Memory</dt>
-                              <dd>{formatNumber(run.metrics.peak_gpu_memory)} GB</dd>
+                              <dd>{formatNumber(run.metrics?.peak_gpu_memory || 0)} GB</dd>
                             </div>
                             <div>
                               <dt className="text-gray-400">Power Draw</dt>
-                              <dd>{formatNumber(run.metrics.gpu_power_draw)} W</dd>
+                              <dd>{formatNumber(run.metrics?.gpu_power_draw || 0)} W</dd>
                             </div>
                           </dl>
                         </div>
@@ -169,15 +169,15 @@ const BenchmarkHistory = () => {
                           <dl className="space-y-2">
                             <div>
                               <dt className="text-gray-400">Total Tokens</dt>
-                              <dd>{run.metrics.total_tokens.toLocaleString()}</dd>
+                              <dd>{(run.metrics?.total_tokens || 0).toLocaleString()}</dd>
                             </div>
                             <div>
                               <dt className="text-gray-400">Successful Requests</dt>
-                              <dd>{run.metrics.successful_requests.toLocaleString()}</dd>
+                              <dd>{(run.metrics?.successful_requests || 0).toLocaleString()}</dd>
                             </div>
                             <div>
                               <dt className="text-gray-400">Failed Requests</dt>
-                              <dd>{run.metrics.failed_requests.toLocaleString()}</dd>
+                              <dd>{(run.metrics?.failed_requests || 0).toLocaleString()}</dd>
                             </div>
                           </dl>
                         </div>

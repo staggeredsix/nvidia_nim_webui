@@ -1,7 +1,7 @@
 // src/services/api.ts
 import axios from "axios";
-import type { BenchmarkRun as BenchmarkRunType, BenchmarkConfig as BenchmarkConfigType } from '../types/benchmark';
-import { API_BASE_URL, WS_BASE_URL } from '@/config';
+import type { BenchmarkRun as BenchmarkRunType, BenchmarkConfig as BenchmarkConfigType } from "../types/benchmark";
+import { API_BASE_URL, WS_BASE_URL } from "@/config";
 
 const BASE_URL = API_BASE_URL;
 const WS_BASE = WS_BASE_URL;
@@ -41,8 +41,28 @@ export interface BenchmarkMetrics {
   failed_requests: number;
 }
 
+export interface StartBenchmarkResponse {
+  run_id: number;
+  metrics: any;
+  container_id?: string;
+}
+
+export interface NgcModelSetupRequest {
+  source: string;
+  model_name: string;
+  backends?: string[];
+  overwrite?: boolean;
+}
+
+export interface NgcModelSetupResponse {
+  model_name: string;
+  target_root: string;
+  backends: Record<string, { model_dir: string; launch_example: string }>;
+  download: { stdout: string; stderr: string };
+}
+
 // API Functions
-export const startBenchmark = async (config: BenchmarkConfig) => {
+export const startBenchmark = async (config: BenchmarkConfig): Promise<StartBenchmarkResponse> => {
   console.log("Sending benchmark request:", config);
   try {
     const response = await axios.post(`${BASE_URL}/benchmark`, config);
@@ -50,7 +70,7 @@ export const startBenchmark = async (config: BenchmarkConfig) => {
   } catch (error) {
     console.error("Benchmark request error:", error);
     if (axios.isAxiosError(error)) {
-      throw new Error(error.response?.data?.detail || 'Failed to start benchmark');
+      throw new Error(error.response?.data?.detail || "Failed to start benchmark");
     }
     throw error;
   }
@@ -92,6 +112,21 @@ export const deleteNgcKey = async (): Promise<void> => {
   }
 };
 
+export const setupNgcModel = async (
+  payload: NgcModelSetupRequest
+): Promise<NgcModelSetupResponse> => {
+  try {
+    const response = await axios.post(`${BASE_URL}/models/ngc`, payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error preparing NGC model:", error);
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.detail || "Failed to prepare model");
+    }
+    throw error;
+  }
+};
+
 export const getNims = async (): Promise<ContainerInfo[]> => {
   try {
     const response = await axios.get(`${BASE_URL}/nims`);
@@ -126,7 +161,7 @@ export const saveLogs = async (containerId: string, filename: string): Promise<v
   try {
     await axios.post(`${BASE_URL}/logs/save`, {
       container_id: containerId,
-      filename: filename
+      filename: filename,
     });
   } catch (error) {
     console.error("Error saving logs:", error);
