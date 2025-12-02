@@ -32,6 +32,50 @@ Copy├── app/
    - Health checks
    - Port management
 
+## Multi-provider DGX Spark workflow
+
+The benchmark harness now supports testing external inference providers in addition to NIM containers so that you can validate early weights on DGX Spark without depending on NIM availability.
+
+Supported provider targets:
+
+- **llama.cpp** (server or local HTTP binding)
+- **Ollama**
+- **sgLang**
+- **vLLM**
+
+### How to run benchmarks
+
+1. Launch your provider on DGX Spark with an HTTP endpoint (for example `http://localhost:8000`).
+2. POST to `/benchmark` with the provider fields:
+   - `provider`: one of `llama.cpp`, `ollama`, `sglang`, `vllm`, or `nim`.
+   - `endpoint`: full base URL for the provider (defaults to `http://localhost:8000`).
+   - `model_name`: provider-visible model identifier.
+   - `quantization`: `default` or `nvfp4` (add others if needed).
+   - `stream`: `true` to capture first-token and inter-token latency.
+3. To exercise the requested workflow, run two passes: the provider’s default precision and a quantized `nvfp4` pass. Capture any issues in both runs; other quantizations can be added by repeating with a different `quantization` value.
+
+### Using the WebUI for provider coverage
+
+- The **Run a Benchmark** page now lets you mix NIM containers and external providers (llama.cpp, Ollama, sgLang, and vLLM) in the same run list.
+- For each target you can set the endpoint, model name, quantization (`default` or `nvfp4`), optional expected output for quick accuracy checks, and per-target prompts.
+- Streaming can be toggled per target to capture time-to-first-token and inter-token latency.
+
+### Preparing NGC CLI models for non-NIM backends
+
+- In the Benchmark page you can enter an NGC model spec (for example `nvidia/llama2_70b:1.0`) plus a friendly model name to auto-download via `ngc`.
+- The tool creates a dedicated directory under `models/<model_name>` with subfolders for llama.cpp, Ollama, sgLang, and vLLM, wiring symlinks to the downloaded payload and emitting example launch commands per backend.
+- This path is meant for non-NIM runners only (NIM will not host these NVIDIA CLI downloads).
+
+### Metrics captured per run
+
+- Time to first token (prefill latency)
+- Inter-token latency
+- Total completion time
+- Average latency and p95 latency
+- Tokens/sec and peak TPS
+- Tool-call latency and accuracy (when `tool_calls` are present)
+- Accuracy against an expected output when `expected_output` is provided
+
 ### Frontend (React/TypeScript)
 
 1. `TelemetryComponents.tsx`: Real-time metrics display
