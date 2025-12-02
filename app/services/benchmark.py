@@ -193,15 +193,18 @@ class BenchmarkService:
 
                 # Process GPU metrics
                 if gpu_metrics_history:
-                    avg_metrics = gpu_metrics_history[-1]  # Get latest metrics
+                    avg_metrics = gpu_metrics_history[-1] or {}
+                    raw_gpu_metrics = avg_metrics.get('gpu_metrics') or []
+
                     gpu_metrics = [{
                         'gpu_utilization': gpu.get('gpu_utilization', 0),
                         'gpu_memory_used': gpu.get('gpu_memory_used', 0),
                         'gpu_memory_total': gpu.get('gpu_memory_total', 0),
                         'gpu_temp': gpu.get('gpu_temp', 0),
                         'power_draw': gpu.get('power_draw', 0)
-                    } for gpu in avg_metrics['gpu_metrics']]
-                    avg_power = avg_metrics['power_draw']
+                    } for gpu in raw_gpu_metrics] if isinstance(raw_gpu_metrics, list) else []
+
+                    avg_power = avg_metrics.get('power_draw', 0) or 0
                 else:
                     gpu_metrics = []
                     avg_power = 0
